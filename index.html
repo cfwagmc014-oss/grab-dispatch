@@ -51,6 +51,8 @@ const API_URL   = 'https://script.google.com/macros/s/AKfycbwEQCShLwLlx9EcZ11TUp
 const CLIENT_ID = '377918343945-ie4gvtkean49mrvuk11e0oqg1005rqi4.apps.googleusercontent.com';
 
 let token = null, S = null, tab = null, loginMsg = '', busy = false;
+const draft = {};
+document.addEventListener('input', e => { if (e.target && e.target.id) draft[e.target.id] = e.target.value; });
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = ms => Math.max(0, Math.floor(ms / 60000));
@@ -83,7 +85,10 @@ function poll() {
       else { loginMsg = 'เกิดข้อผิดพลาด: ' + res.error; if (!S) showLogin(); }
       return;
     }
-    S = res; if (!tab) tab = res.me.role === 'picker' ? 'my' : 'dash'; render();
+    S = res; if (!tab) tab = res.me.role === 'picker' ? 'my' : 'dash';
+    const ae = document.activeElement;   // ถ้ากำลังพิมพ์/เลือกอยู่ ไม่วาดหน้าใหม่ทับ (กันข้อความหาย)
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && $('app').contains(ae)) return;
+    render();
   }).catch(() => { busy = false; if (S) { S.offline = true; render(); } });
 }
 
@@ -112,6 +117,7 @@ function render() {
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
   h += tab === 'my' ? viewMy() : tab === 'dash' ? viewDash() : viewTeam();
   $('app').innerHTML = h + '</main>';
+  Object.keys(draft).forEach(k => { const el = $(k); if (el) el.value = draft[k]; });   // คืนค่าที่พิมพ์ค้างไว้
 }
 
 function viewMy() {
@@ -172,7 +178,7 @@ function setTab(t) { tab = t; render(); }
 function act(action, id, email) { api(action, { id, email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function savePicker(email, name, role, active) { api('savePicker', { email, name, role, active }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
-function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); poll(); }); }
+function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); else { delete draft.nName; delete draft.nMail; } poll(); }); }
 function logout() { token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
 
 try { token = localStorage.getItem('gd_token'); } catch (e) {}
