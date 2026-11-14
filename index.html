@@ -51,6 +51,20 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .col .job{padding:10px;margin-bottom:8px;border-width:1.5px}.col .job .id{font-size:20px}.col .job .n{margin:0 0 6px;font-size:13.5px}
 .col select{width:100%;margin-top:6px;font-size:13px}
 .qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.qrbox svg{width:190px;height:190px;border:1px solid var(--b);border-radius:8px;background:#fff}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
+.g2 .card{margin-bottom:0}
+.rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.rng button{border:1px solid var(--b);background:#fff;border-radius:18px;padding:6px 14px;font:inherit;cursor:pointer}
+.rng button.on{background:var(--red);color:#fff;border-color:var(--red)}
+.donut{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.donut svg{width:150px;height:150px}
+.lg{font-size:13.5px}.lg div{margin:3px 0}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.hbar{display:grid;grid-template-columns:110px 1fr 70px;gap:8px;align-items:center;margin:7px 0;font-size:14px}
+.hours{display:flex;align-items:flex-end;gap:3px;height:130px;border-bottom:1px solid var(--b);padding-top:6px}
+.hours div{flex:1;background:#f0b4b7;border-radius:3px 3px 0 0;min-height:1px;position:relative}.hours div.pk{background:var(--red)}
+.hlab{display:flex;gap:3px;font-size:10.5px;color:var(--m)}.hlab span{flex:1;text-align:center}
+.heat{border-collapse:separate;border-spacing:2px;font-size:11.5px}.heat td,.heat th{padding:3px 0;text-align:center;min-width:26px;border:0;border-radius:3px}
+.heat th{color:var(--m);font-weight:400}.heat td.l{text-align:left;padding-right:8px;white-space:nowrap;color:var(--m)}
+.okmsg{background:#eaf7f1;border:1px solid var(--ok);color:var(--ok);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:600}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
@@ -2364,7 +2378,7 @@ let token = null, S = null, tab = null, loginMsg = '', busy = false, qr = null, 
 const joinParam = new URLSearchParams(location.search).get('join');
 try { gtoken = localStorage.getItem('gd_gtoken'); } catch (e) {}
 const draft = {};
-document.addEventListener('input', e => { if (e.target && e.target.id) draft[e.target.id] = e.target.value; });
+document.addEventListener('input', e => { if (e.target && e.target.id) draft[e.target.id] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = ms => Math.max(0, Math.floor(ms / 60000));
@@ -2415,7 +2429,7 @@ function poll() {
       else { loginMsg = 'เกิดข้อผิดพลาด: ' + res.error; if (!S) showLogin(); }
       return;
     }
-    S = res; if (!tab) tab = res.me.role === 'picker' ? 'my' : 'dash';
+    S = res; if (!tab) tab = 'orders';
     const ae = document.activeElement;   // ถ้ากำลังพิมพ์/เลือกอยู่ ไม่วาดหน้าใหม่ทับ (กันข้อความหาย)
     if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && $('app').contains(ae)) return;
     render();
@@ -2433,10 +2447,9 @@ const startOfDay = () => { const d = new Date(); d.setHours(0,0,0,0); return d.g
 function render() {
   const me = S.me, isAdmin = me.role === 'admin', now = S.now;
   if (me.guest && me.gstatus === 'pending') { $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 8px;color:var(--red)">รอผู้ดูแลอนุมัติ…</h2><div class="muted" style="margin-bottom:14px">สวัสดี ' + esc(me.name) + ' · เมื่อผู้ดูแลกดอนุมัติ งานจะเด้งขึ้นหน้านี้เอง</div><button class="s" onclick="leaveGuest()">ยกเลิก</button></div>'; return; }
-  const tabs = [];
-  if (me.role === 'picker') tabs.push(['my', 'งานของฉัน']);
+  const tabs = [['orders', 'Orders Task']];
   if (!me.guest) tabs.push(['dash', 'Dashboard']);
-  if (isAdmin) tabs.push(['team', 'ทีมงาน']);
+  if (isAdmin) tabs.push(['control', 'Control']);
   if (!tabs.some(t => t[0] === tab)) tab = tabs[0][0];
   const age = S.reader.ts ? now - S.reader.ts : Infinity;
   const online = age < 120000;
@@ -2446,9 +2459,9 @@ function render() {
     '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</nav><main>';
   if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
-  h += tab === 'my' ? viewMy() : tab === 'dash' ? viewDash() : viewTeam();
+  h += tab === 'orders' ? viewOrders() : tab === 'dash' ? viewDash() : viewControl();
   $('app').innerHTML = h + '</main>';
-  Object.keys(draft).forEach(k => { const el = $(k); if (el) el.value = draft[k]; });   // คืนค่าที่พิมพ์ค้างไว้
+  Object.keys(draft).forEach(k => { const el = $(k); if (el) { if (el.type === 'checkbox') el.checked = !!draft[k]; else el.value = draft[k]; } });   // คืนค่าที่พิมพ์ค้างไว้
 }
 
 function dutyBar() {
@@ -2477,7 +2490,7 @@ function viewMyJobs() {
     const btn = st === 'saving' ? '<button class="p" disabled style="opacity:.75">⏳ กำลังบันทึก…</button>'
       : st === 'ok' ? '<button class="p" disabled style="background:var(--ok)">✅ ปิดงานสำเร็จ</button>'
       : '<button class="p" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>';
-    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + btn + '</div>';
+    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + btn + '</div>';
   }).join('') + '</div>';
 }
 function doneJob(id) {
@@ -2492,7 +2505,7 @@ function doneJob(id) {
   }).catch(() => { delete jobState[id]; alert('เชื่อมต่อไม่ได้ ยังไม่ได้ปิดงาน – ลองกดใหม่'); render(); });
 }
 
-function viewDash() {
+function viewMonitor() {
   const isAdmin = S.me.role === 'admin', now = S.now, sod = startOfDay();
   const todo = S.orders.filter(o => o.status === 'todo');
   const doneToday = S.orders.filter(o => o.status === 'done' && o.done_at >= sod);
@@ -2522,18 +2535,82 @@ function viewDash() {
     const st = !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : !p.online ? '<span class="chip">ออฟไลน์</span>' : '<span class="chip ok">พร้อมรับงาน</span>';
     const jobs = mine(p);
     return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3><div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
-      (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' +
+      (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' +
         (isAdmin ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const list = todo.concat(S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 25))
     .sort((a, b) => (a.status === 'todo' ? 0 : 1) - (b.status === 'todo' ? 0 : 1) || a.created_at - b.created_at);
   const opts = o => pickers.filter(p => p.active && p.duty && p.online).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
-  h += '<div class="card"><h2>รายการออเดอร์</h2><div style="overflow:auto"><table><tr><th>ออเดอร์</th><th>รายการ</th><th>ผู้จัด</th><th>ไรเดอร์</th><th>รอมา</th><th>สถานะ</th></tr>' + list.map(o => {
+  h += '<div class="card"><h2>รายการออเดอร์</h2><div style="overflow:auto"><table><tr><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>ไรเดอร์</th><th>รอมา</th><th>สถานะ</th></tr>' + list.map(o => {
     const st = o.status === 'todo' ? '<span class="chip warn">รอจัด</span>' : o.status === 'done' ? '<span class="chip ok">จัดเสร็จ ' + mins(o.done_at - o.created_at) + ' น.</span>' : '<span class="chip">ส่งต่อไรเดอร์แล้ว</span>';
     const who = isAdmin && o.status === 'todo' ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)"><option value="">' + (o.picker_email ? '' : '— ยังไม่มี —') + '</option>' + opts(o) + '</select>' : esc(o.picker_name || '-');
-    return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + who + '</td><td>' + (o.status === 'todo' ? riderChip(o.rider) : '') + '</td><td>' + (o.status === 'todo' ? mins(now - o.created_at) + ' นาที' : '') + '</td><td>' + st + '</td></tr>';
+    return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + who + '</td><td>' + (o.status === 'todo' ? riderChip(o.rider) : '') + '</td><td>' + (o.status === 'todo' ? mins(now - o.created_at) + ' นาที' : '') + '</td><td>' + st + '</td></tr>';
   }).join('') + '</table></div></div>';
   return h;
+}
+
+const fmtB = n => n > 0 ? '฿' + Math.round(n).toLocaleString('th-TH') : '-';
+const pickMin = o => Math.max(0, Math.round((o.done_at - (o.assigned_at || o.created_at)) / 60000));
+const COLORS = ['#D71920', '#0B7285', '#E8A317', '#5F3DC4', '#2B8A3E', '#C2255C', '#495057', '#1971C2'];
+let range = 'today';
+function setRange(r) { range = r; render(); }
+function viewOrders() { return S.me.role === 'picker' ? viewMy() : viewMonitor(); }
+function rangeOrders() {
+  const days = range === 'today' ? 1 : Number(range);
+  const from = startOfDay() - (days - 1) * 86400000;
+  return { days, from, os: S.orders.filter(o => o.created_at >= from) };
+}
+function viewDash() {
+  const { days, from, os } = rangeOrders();
+  const done = os.filter(o => o.status === 'done'), closed = os.filter(o => o.status === 'closed'), todo = os.filter(o => o.status === 'todo');
+  const items = done.reduce((s, o) => s + o.items, 0), money = done.reduce((s, o) => s + (o.amount || 0), 0);
+  const avg = done.length ? Math.round(done.reduce((s, o) => s + pickMin(o), 0) / done.length) : 0;
+  const noAmt = os.filter(o => !o.amount).length;
+  const by = {};
+  done.forEach(o => { const k = o.picker_email || o.picker_name || '-'; const b = by[k] || (by[k] = { name: o.picker_name || o.picker_email || '-', n: 0, items: 0, money: 0, t: 0 }); b.n++; b.items += o.items; b.money += o.amount || 0; b.t += pickMin(o); });
+  const rows = Object.keys(by).map(k => by[k]).sort((a, b) => b.n - a.n);
+  const mxT = Math.max.apply(null, rows.map(r => r.t / r.n).concat([1]));
+  // ช่วงเวลาความหนาแน่น
+  const hc = new Array(24).fill(0), dayHour = {};
+  os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); hc[hr]++; (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; });
+  let first = 24, last = -1; hc.forEach((n, i) => { if (n) { first = Math.min(first, i); last = Math.max(last, i); } });
+  const h0 = Math.min(7, first === 24 ? 7 : first), h1 = Math.max(21, last);
+  const mxH = Math.max.apply(null, hc.concat([1])), peak = hc.indexOf(mxH);
+  const pad = n => (n < 10 ? '0' : '') + n;
+  let h = '<div class="rng"><b>ช่วงเวลา:</b>' + [['today', 'วันนี้'], ['7', '7 วัน'], ['14', '14 วัน']].map(r => '<button class="' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">' + r[1] + '</button>').join('') +
+    '<span style="flex:1"></span><button onclick="exportCsv()">⬇ ดาวน์โหลด CSV</button></div>';
+  h += '<div class="kpis">' +
+    '<div class="k"><b>' + os.length + '</b><span>ออเดอร์ทั้งหมด (รอจัด ' + todo.length + ')</span></div>' +
+    '<div class="k"><b>' + done.length + '</b><span>จัดเสร็จ' + (closed.length ? ' (ส่งต่อไรเดอร์โดยไม่กดเสร็จ ' + closed.length + ')' : '') + '</span></div>' +
+    '<div class="k"><b>' + items.toLocaleString('th-TH') + '</b><span>จำนวนสินค้าที่หยิบ (รายการ)</span></div>' +
+    '<div class="k"><b>' + fmtB(money) + '</b><span>ยอดเงินออเดอร์ที่จัดเสร็จ</span></div>' +
+    '<div class="k"><b>' + avg + '</b><span>นาที – เวลาหยิบเฉลี่ยต่อออเดอร์</span></div></div>';
+  if (noAmt) h += '<div class="muted" style="margin:-6px 0 12px">* ' + noAmt + ' ออเดอร์ยังไม่มียอดเงิน (ระบบเริ่มเก็บยอดเงินตั้งแต่ตัวอ่านเวอร์ชัน 1.5)</div>';
+  // donut + ตาราง
+  let off = 0;
+  const seg = rows.map((r, i) => { const p = r.n / done.length * 100; const s = '<circle cx="21" cy="21" r="15.9155" fill="none" stroke="' + COLORS[i % COLORS.length] + '" stroke-width="7" stroke-dasharray="' + p + ' ' + (100 - p) + '" stroke-dashoffset="' + (-off) + '"/>'; off += p; return s; }).join('');
+  const donut = done.length ? '<div class="donut"><svg viewBox="0 0 42 42"><g transform="rotate(-90 21 21)">' + seg + '</g><text x="21" y="20.5" text-anchor="middle" font-size="7" font-weight="700" fill="#1d2230">' + done.length + '</text><text x="21" y="26.5" text-anchor="middle" font-size="3.4" fill="#6a7280">ออเดอร์</text></svg><div class="lg">' +
+    rows.map((r, i) => '<div><i style="background:' + COLORS[i % COLORS.length] + '"></i>' + esc(r.name) + ' · ' + r.n + ' (' + Math.round(r.n / done.length * 100) + '%)</div>').join('') + '</div></div>' : '<div class="muted">ยังไม่มีออเดอร์ที่จัดเสร็จในช่วงนี้</div>';
+  h += '<div class="g2"><div class="card"><h2>สัดส่วนออเดอร์ที่จัดเสร็จ รายคน</h2>' + donut + '</div>' +
+    '<div class="card"><h2>เวลาหยิบเฉลี่ยต่อออเดอร์ รายคน</h2>' + (rows.length ? rows.map((r, i) => { const t = Math.round(r.t / r.n); return '<div class="hbar"><span>' + esc(r.name) + '</span><div class="bar"><i style="width:' + Math.round(r.t / r.n / mxT * 100) + '%;background:' + COLORS[i % COLORS.length] + '"></i></div><b>' + t + ' นาที</b></div>'; }).join('') + '<div class="muted" style="margin-top:6px">นับจากเวลาที่ได้รับมอบหมายถึงเวลาที่กดจัดเสร็จ</div>' : '<div class="muted">ยังไม่มีข้อมูล</div>') + '</div></div>';
+  h += '<div class="card"><h2>สรุปการ Pickup รายคน</h2><div style="overflow:auto"><table><tr><th>Picker</th><th>ออเดอร์</th><th>สัดส่วน</th><th>สินค้าที่หยิบ (รายการ)</th><th>ยอดเงิน</th><th>เวลาเฉลี่ย/ออเดอร์</th></tr>' +
+    (rows.length ? rows.map(r => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + r.n + '</td><td>' + Math.round(r.n / done.length * 100) + '%</td><td>' + r.items + '</td><td>' + fmtB(r.money) + '</td><td>' + Math.round(r.t / r.n) + ' นาที</td></tr>').join('') +
+      '<tr style="font-weight:700"><td>รวม</td><td>' + done.length + '</td><td>100%</td><td>' + items + '</td><td>' + fmtB(money) + '</td><td>' + avg + ' นาที</td></tr>' : '<tr><td colspan="6" class="muted">ยังไม่มีข้อมูล</td></tr>') + '</table></div></div>';
+  // ความหนาแน่น
+  h += '<div class="card"><h2>ความหนาแน่นของออเดอร์ตามช่วงเวลา</h2>' + (os.length ? '<div class="muted" style="margin-bottom:8px">ออเดอร์เข้าหนาแน่นสุดช่วง <b style="color:var(--red)">' + pad(peak) + ':00–' + pad(peak + 1) + ':00 น.</b> (' + mxH + ' ออเดอร์' + (days > 1 ? ' รวม ' + days + ' วัน' : '') + ')</div>' : '') +
+    '<div class="hours">' + hc.slice(h0, h1 + 1).map((n, i) => '<div class="' + (h0 + i === peak && n ? 'pk' : '') + '" style="height:' + Math.max(n ? 4 : 1, Math.round(n / mxH * 100)) + '%" title="' + pad(h0 + i) + ':00 – ' + n + ' ออเดอร์"></div>').join('') + '</div>' +
+    '<div class="hlab">' + hc.slice(h0, h1 + 1).map((n, i) => '<span>' + (h0 + i) + '</span>').join('') + '</div>' +
+    '<div class="muted" style="margin:14px 0 4px">แยกรายวัน (ตัวเลข = จำนวนออเดอร์ที่เข้าในชั่วโมงนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวม</th></tr>' +
+    Array.from({ length: days }, (_, i) => { const d = new Date(from + (days - 1 - i) * 86400000), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), arr = dayHour[dk] || new Array(24).fill(0);
+      return '<tr><td class="l">' + d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) + '</td>' + arr.slice(h0, h1 + 1).map(n => '<td style="' + (n ? 'background:rgba(215,25,32,' + (0.1 + 0.8 * n / mxH).toFixed(2) + ');color:' + (n / mxH > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>').join('') + '<td><b>' + arr.reduce((s, n) => s + n, 0) + '</b></td></tr>'; }).join('') + '</table></div></div>';
+  return h;
+}
+function exportCsv() {
+  const { os } = rangeOrders(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', t = ms => ms ? new Date(ms).toLocaleString('sv-SE') : '';
+  const lines = [['order', 'items', 'amount', 'picker', 'status', 'created', 'assigned', 'done', 'pick_minutes'].map(q).join(',')].concat(os.map(o =>
+    [o.id, o.items, o.amount || 0, o.picker_name, o.status, t(o.created_at), t(o.assigned_at), t(o.done_at), o.status === 'done' ? pickMin(o) : ''].map(q).join(',')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'grab-orders-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
 }
 
 function guestPanel() {
@@ -2553,16 +2630,34 @@ function guestPanel() {
 function newQr() { api('joinCode').then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + r.error); return; } qr = { url: location.origin + location.pathname + '?join=' + r.code, exp: r.exp }; render(); }); }
 function guestAct(a, id) { api(a, { id }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
-function viewTeam() {
-  return '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด (ล็อกอินด้วย Google ตามอีเมลที่เพิ่มไว้) คนจัดล็อกอินแล้ว = เข้างานเอง กดพักเองได้ในหน้า "งานของฉัน" ส่วนช่อง "อยู่ในทีม" ใช้เมื่อหยุดยาว/ลาออก (แอดมินปิดให้)</div>' +
-    '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + S.pickers.map(p =>
-      '<tr><td>' + esc(p.name) + '</td><td class="muted">' + esc(p.email) + '</td><td>' + esc(p.role) + '</td><td><input type="checkbox" ' + (p.active ? 'checked' : '') + ' onchange="savePicker(\'' + esc(p.email) + '\',\'' + esc(p.name).replace(/'/g, '') + '\',\'' + p.role + '\',this.checked)"></td><td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td><td><button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
+let ctrlMsg = '';
+const ERR = { bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
+function viewControl() {
+  const list = S.pickers.filter(p => !p.guest);
+  const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + r + '</option>';
+  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') +
+    '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">แก้ชื่อ อีเมล สิทธิ์ หรือสถานะ แล้วกด <b>บันทึก</b> ที่แถวนั้น · picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด · "อยู่ในทีม" ปิดเมื่อหยุดยาว/ลาออก (งานค้างจะถูกแจกให้คนอื่นทันที) · ถ้าเปลี่ยนอีเมล คนนั้นต้องล็อกอินด้วยอีเมลใหม่ (และต้องเป็น Test user ใน Google Cloud)</div>' +
+    '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล Google</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + list.map((p, i) =>
+      '<tr><td><input id="cN_' + i + '" value="' + esc(p.name) + '" size="14"></td><td><input id="cE_' + i + '" value="' + esc(p.email) + '" size="26"></td>' +
+      '<td><select id="cR_' + i + '">' + sel(p, 'picker') + sel(p, 'viewer') + sel(p, 'admin') + '</select></td>' +
+      '<td style="text-align:center"><input type="checkbox" id="cA_' + i + '" ' + (p.active ? 'checked' : '') + '></td>' +
+      '<td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td>' +
+      '<td style="white-space:nowrap"><button class="p" style="padding:6px 12px" onclick="editPicker(' + i + ',this)">บันทึก</button> <button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
     '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>' +
     '<div class="card"><h2>เครื่องมือ</h2><button class="s" onclick="if(confirm(\'แจกงานค้างทั้งหมดใหม่ตามภาระงานปัจจุบัน?\'))act(\'redistribute\')">แจกงานค้างใหม่ทั้งหมด</button></div>';
 }
-
+function clearCtrlDrafts() { Object.keys(draft).forEach(k => { if (/^c[NERA]_/.test(k)) delete draft[k]; }); }
+function editPicker(i, btn) {
+  const p = S.pickers.filter(x => !x.guest)[i]; if (!p) return;
+  const body = { oldEmail: p.email, email: $('cE_' + i).value.trim(), name: $('cN_' + i).value.trim(), role: $('cR_' + i).value, active: $('cA_' + i).checked };
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก…'; }
+  api('savePicker', body).then(r => {
+    if (!r.ok) { alert('บันทึกไม่สำเร็จ: ' + (ERR[r.error] || r.error)); if (btn) { btn.disabled = false; btn.textContent = 'บันทึก'; } return; }
+    clearCtrlDrafts(); ctrlMsg = '✅ บันทึกแล้ว: ' + (body.name || body.email); poll(); render(); setTimeout(() => { ctrlMsg = ''; if (S) render(); }, 3500);
+  }).catch(() => { alert('เชื่อมต่อไม่ได้ ยังไม่ได้บันทึก'); if (btn) { btn.disabled = false; btn.textContent = 'บันทึก'; } });
+}
 function setDuty(on) { if (S) { const mp = S.pickers.find(p => p.key === S.me.email); if (mp) mp.duty = on; render(); } api('duty', { on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
-function setTab(t) { tab = t; render(); }
+function setTab(t) { tab = t; clearCtrlDrafts(); render(); }
 function act(action, id, email) { api(action, { id, email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function savePicker(email, name, role, active) { api('savePicker', { email, name, role, active }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
