@@ -65,6 +65,11 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .heat{border-collapse:separate;border-spacing:2px;font-size:11.5px}.heat td,.heat th{padding:3px 0;text-align:center;min-width:26px;border:0;border-radius:3px}
 .heat th{color:var(--m);font-weight:400}.heat td.l{text-align:left;padding-right:8px;white-space:nowrap;color:var(--m)}
 .okmsg{background:#eaf7f1;border:1px solid var(--ok);color:var(--ok);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:600}
+.gbtn{background:#12805c;color:#fff;border:0;border-radius:10px;padding:12px 22px;font:inherit;font-size:16px;font-weight:700;cursor:pointer}.gbtn:disabled{opacity:.7;cursor:default}
+.items{margin-top:8px;font-size:13.5px;border-top:1px dashed var(--b);padding-top:4px;text-align:left}
+.it{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #f0f1f3;align-items:flex-start}.it:last-child{border-bottom:0}
+.it .q{min-width:38px;font-weight:700;color:var(--red);font-size:15px}.it small{color:var(--m);display:block}
+.it .nw{background:#e3f4ec;color:var(--ok);border-radius:8px;padding:0 6px;font-size:11.5px;font-weight:600;margin-left:4px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
@@ -2490,7 +2495,7 @@ function viewMyJobs() {
     const btn = st === 'saving' ? '<button class="p" disabled style="opacity:.75">⏳ กำลังบันทึก…</button>'
       : st === 'ok' ? '<button class="p" disabled style="background:var(--ok)">✅ ปิดงานสำเร็จ</button>'
       : '<button class="p" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>';
-    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + btn + '</div>';
+    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + itemsBlock(o) + '<div style="margin-top:10px">' + btn + '</div></div>';
   }).join('') + '</div>';
 }
 function doneJob(id) {
@@ -2518,7 +2523,7 @@ function viewMonitor() {
   todo.forEach(o => { if (load[o.picker_email]) { load[o.picker_email].items += o.items; load[o.picker_email].count++; } });
   doneToday.forEach(o => { if (load[o.picker_email]) load[o.picker_email].done++; });
   const mx = Math.max.apply(null, Object.keys(load).map(k => load[k].items).concat([1]));
-  let h = '<div class="kpis">' +
+  let h = dispatchCard(todo, pickers) + '<div class="kpis">' +
     '<div class="k"><b>' + todo.length + '</b><span>ออเดอร์รอจัด</span></div>' +
     '<div class="k"><b>' + todo.reduce((s, o) => s + o.items, 0) + '</b><span>รายการสินค้ารอจัด</span></div>' +
     '<div class="k ' + (waiting ? 'alert' : '') + '"><b>' + waiting + '</b><span>ไรเดอร์รอรับของ</span></div>' +
@@ -2535,7 +2540,7 @@ function viewMonitor() {
     const st = !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : !p.online ? '<span class="chip">ออฟไลน์</span>' : '<span class="chip ok">พร้อมรับงาน</span>';
     const jobs = mine(p);
     return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3><div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
-      (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' +
+      (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
         (isAdmin ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const list = todo.concat(S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 25))
@@ -2549,11 +2554,39 @@ function viewMonitor() {
   return h;
 }
 
+const openItems = {};
+function itemsOf(o) { try { return JSON.parse(o.detail || '[]'); } catch (e) { return []; } }
+function toggleItems(id) { openItems[id] = !openItems[id]; render(); }
+function itemsBlock(o) {
+  const open = openItems[o.id], list = itemsOf(o);
+  const head = '<button class="s" style="width:100%;margin-top:6px;padding:8px;font-size:14px" onclick="toggleItems(\'' + o.id + '\')">🧾 ' + (open ? 'ซ่อน' : 'ดู') + 'รายการสินค้า' + (list.length ? ' (' + list.length + ')' : '') + '</button>';
+  if (!open) return head;
+  if (!list.length) return head + '<div class="muted" style="margin-top:6px">กำลังดึงรายการสินค้า… (ใช้เวลาไม่กี่วินาที ต้องเปิดหน้า Grab ค้างไว้ที่ร้าน)</div>';
+  return head + '<div class="items">' + list.map(x => '<div class="it"><span class="q">' + esc(x[1]) + ' ×</span><span>' + esc(x[0]) + (x[4] ? '<span class="nw">เพิ่มใหม่</span>' : '') + '<small>' + (x[3] ? 'รหัส ' + esc(x[3]) + ' · ' : '') + '฿' + esc(x[2]) + '</small></span></div>').join('') + '</div>';
+}
 const fmtB = n => n > 0 ? '฿' + Math.round(n).toLocaleString('th-TH') : '-';
 const pickMin = o => Math.max(0, Math.round((o.done_at - (o.assigned_at || o.created_at)) / 60000));
 const COLORS = ['#D71920', '#0B7285', '#E8A317', '#5F3DC4', '#2B8A3E', '#C2255C', '#495057', '#1971C2'];
 let range = 'today';
 function setRange(r) { range = r; render(); }
+let dispState = '';
+function dispatchCard(todo, pickers) {
+  const items = todo.reduce((s, o) => s + o.items, 0), un = todo.filter(o => !o.picker_email).length;
+  const per = pickers.filter(p => p.active && p.duty && p.online).map(p => esc(p.name) + ' ' + todo.filter(o => o.picker_email === p.key).length).join(' · ');
+  const isAdmin = S.me.role === 'admin';
+  return '<div class="card" style="border-color:#12805c;background:#f2fbf7"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0 0 4px">📦 งานค้างตอนนี้ ' + todo.length + ' ออเดอร์ <span class="muted" style="font-weight:400">(' + items + ' รายการ' + (un ? ' · ยังไม่มีคนรับ ' + un : '') + ')</span></h2><div class="muted">' + (per ? 'ผู้จัดที่พร้อมรับงาน: ' + per : 'ยังไม่มีผู้จัดที่พร้อมรับงาน') + '</div></div>' +
+    (isAdmin ? '<button class="gbtn" ' + (dispState === 'saving' || !todo.length ? 'disabled' : '') + ' onclick="redistributeNow()">' + (dispState === 'saving' ? '⏳ กำลังกระจาย…' : dispState === 'ok' ? '✅ กระจายแล้ว' : '⚡ กระจายทันที') + '</button>' : '') + '</div></div>';
+}
+function redistributeNow() {
+  if (dispState) return;
+  if (!confirm('กระจายงานค้างทั้งหมดใหม่ตามภาระงานปัจจุบัน?\nงานที่แต่ละคนถืออยู่จะถูกจัดสรรใหม่')) return;
+  dispState = 'saving'; render();
+  api('redistribute').then(r => {
+    if (!r.ok) { dispState = ''; alert('กระจายไม่สำเร็จ: ' + r.error); render(); return; }
+    dispState = 'ok'; render(); poll();
+    setTimeout(() => { dispState = ''; if (S) render(); }, 2500);
+  }).catch(() => { dispState = ''; alert('เชื่อมต่อไม่ได้ ยังไม่ได้กระจายงาน'); render(); });
+}
 function viewOrders() { return S.me.role === 'picker' ? viewMy() : viewMonitor(); }
 function rangeOrders() {
   const days = range === 'today' ? 1 : Number(range);
@@ -2643,8 +2676,7 @@ function viewControl() {
       '<td style="text-align:center"><input type="checkbox" id="cA_' + i + '" ' + (p.active ? 'checked' : '') + '></td>' +
       '<td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td>' +
       '<td style="white-space:nowrap"><button class="p" style="padding:6px 12px" onclick="editPicker(' + i + ',this)">บันทึก</button> <button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
-    '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>' +
-    '<div class="card"><h2>เครื่องมือ</h2><button class="s" onclick="if(confirm(\'แจกงานค้างทั้งหมดใหม่ตามภาระงานปัจจุบัน?\'))act(\'redistribute\')">แจกงานค้างใหม่ทั้งหมด</button></div>';
+    '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>';
 }
 function clearCtrlDrafts() { Object.keys(draft).forEach(k => { if (/^c[NERA]_/.test(k)) delete draft[k]; }); }
 function editPicker(i, btn) {
