@@ -2493,7 +2493,11 @@ function dutyBar() {
     ? '<div class="duty"><div><b>🟢 พร้อมรับงาน</b><div class="muted">ระบบแจกออเดอร์ให้คุณอัตโนมัติ · จะไปพักให้กดปุ่มทางขวา</div></div><button class="s" style="padding:10px 18px" onclick="setDuty(false)">☕ พักก่อน</button></div>'
     : '<div class="duty brk"><div><b>☕ กำลังพัก</b><div class="muted">ตอนนี้ไม่มีงานใหม่เข้า งานที่ค้างถูกส่งให้เพื่อนแล้ว</div></div><button class="p" style="padding:10px 18px" onclick="setDuty(true)">กลับมารับงาน</button></div>';
 }
+function closedCard() {
+  return '<div class="duty brk" style="border-color:#7048e8;background:#f1ecff"><div><b>🌙 ระบบปิดแล้ว (ปิดอัตโนมัติ ' + esc(S.sys.closeTime) + ' น.)</b><div class="muted">ไม่มีการแจกออเดอร์แล้ว · ระบบจะเปิดให้เข้างานได้อีกครั้งในวันถัดไป หรือให้แอดมินกด "เปิดระบบ"</div></div></div>';
+}
 function viewMy() {
+  if (S.sys && S.sys.closed && !S.me.guest) { const me = S.pickers.find(p => p.key === S.me.email); if (!me || !me.online) return closedCard(); }
   const bar = dutyBar();
   const mp = S.pickers.find(p => p.key === S.me.email) || { duty: true };
   if (!mp.duty && !S.me.guest) return bar;
@@ -2541,7 +2545,7 @@ function viewMonitor() {
   todo.forEach(o => { if (load[o.picker_email]) { load[o.picker_email].items += o.items; load[o.picker_email].count++; } });
   doneToday.forEach(o => { if (load[o.picker_email]) load[o.picker_email].done++; });
   const mx = Math.max.apply(null, Object.keys(load).map(k => load[k].items).concat([1]));
-  let h = dispatchCard(todo, pickers) + '<div class="kpis">' +
+  let h = (S.sys && S.sys.closed ? '<div class="duty brk" style="border-color:#7048e8;background:#f1ecff"><div><b>🌙 ระบบปิดแล้ว (ปิดอัตโนมัติ ' + esc(S.sys.closeTime) + ' น.)</b><div class="muted">ไม่มีการแจกออเดอร์</div></div>' + (isAdmin ? '<button class="gbtn" onclick="sysOpen()">▶ เปิดระบบ</button>' : '') + '</div>' : '') + dispatchCard(todo, pickers) + '<div class="kpis">' +
     '<div class="k blue"><i class="ic">📦</i><b>' + todo.length + '</b><span>ออเดอร์รอจัด</span></div>' +
     '<div class="k purple"><i class="ic">🛒</i><b>' + todo.reduce((s, o) => s + o.items, 0) + '</b><span>รายการสินค้ารอจัด</span></div>' +
     '<div class="k ' + (waiting ? 'alert' : '') + '"><b>' + waiting + '</b><span>ไรเดอร์รอรับของ</span></div>' +
@@ -2703,11 +2707,29 @@ function guestAct(a, id, name, kind) {
 }
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
 let ctrlMsg = '';
-const ERR = { bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
+const ERR = { bad_time: 'เวลาไม่ถูกต้อง', bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
+function closeCard() {
+  const sy = S.sys || {};
+  return '<div class="card" style="border-left-color:#7048e8"><h2>🌙 ปิดระบบอัตโนมัติ</h2><div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง ระบบจะออกจากระบบทุกคน (รวมผู้ช่วยด่วน) และหยุดแจกออเดอร์ ทำซ้ำทุกวัน · วันถัดไปทุกคนล็อกอินเข้างานได้ตามปกติ · ใช้เวลาประเทศไทย</div>' +
+    '<div class="row"><input type="time" id="closeT" value="' + esc(sy.closeTime || '21:40') + '"><button class="p" onclick="saveClose()">บันทึกเวลา</button>' +
+    (sy.closeTime ? '<button class="s" onclick="saveClose(true)">ยกเลิกการตั้งเวลา</button>' : '') +
+    '<span class="chip ' + (sy.closeTime ? 'bl' : '') + '">' + (sy.closeTime ? 'ตั้งไว้: ปิด ' + esc(sy.closeTime) + ' น. ทุกวัน' : 'ยังไม่ได้ตั้งเวลา') + '</span>' +
+    (sy.closed ? '<span class="chip warn">ตอนนี้ระบบปิดอยู่</span><button class="gbtn" style="padding:8px 16px;font-size:14px" onclick="sysOpen()">▶ เปิดระบบ</button>' : '') + '</div></div>';
+}
+function saveClose(off) {
+  const t = off ? '' : $('closeT').value;
+  if (!off && !t) { alert('กรุณาเลือกเวลา'); return; }
+  if (!confirm(off ? 'ยกเลิกการปิดระบบอัตโนมัติใช่ไหม?' : 'ตั้งปิดระบบอัตโนมัติ ' + t + ' น. ทุกวัน?\n\n⚠️ ถึงเวลานั้นทุกคนจะถูกออกจากระบบ และงานที่ยังไม่จัดจะไม่ถูกแจกจนกว่าจะเปิดระบบ/ขึ้นวันใหม่')) return;
+  api('setClose', { time: t }).then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + (ERR[r.error] || r.error)); return; } toast(off ? '✅ ยกเลิกการตั้งเวลาแล้ว' : '✅ ตั้งปิดระบบ ' + t + ' น. แล้ว'); poll(); });
+}
+function sysOpen() {
+  if (!confirm('เปิดระบบอีกครั้งใช่ไหม?\n\nคนจัดที่เปิดหน้าเว็บค้างไว้จะเข้างานและรับงานอัตโนมัติ')) return;
+  api('sysOpen').then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + r.error); return; } toast('✅ เปิดระบบแล้ว'); poll(); });
+}
 function viewControl() {
   const list = S.pickers.filter(p => !p.guest);
   const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + r + '</option>';
-  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') +
+  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + closeCard() +
     '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">แก้ชื่อ อีเมล สิทธิ์ หรือสถานะ แล้วกด <b>บันทึก</b> ที่แถวนั้น · picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด · "อยู่ในทีม" ปิดเมื่อหยุดยาว/ลาออก (งานค้างจะถูกแจกให้คนอื่นทันที) · ถ้าเปลี่ยนอีเมล คนนั้นต้องล็อกอินด้วยอีเมลใหม่ (และต้องเป็น Test user ใน Google Cloud)</div>' +
     '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล Google</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + list.map((p, i) =>
       '<tr><td><input id="cN_' + i + '" value="' + esc(p.name) + '" size="14"></td><td><input id="cE_' + i + '" value="' + esc(p.email) + '" size="26"></td>' +
