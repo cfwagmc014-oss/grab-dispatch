@@ -142,7 +142,7 @@ function viewMyJobs() {
   const items = mine.reduce((s, o) => s + o.items, 0);
   return '<div class="muted" style="margin-bottom:8px">ค้างจัด ' + mine.length + ' ออเดอร์ / ' + items + ' รายการ</div><div class="my">' + mine.map(o =>
     '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) +
-    '</div><button class="p" onclick="act(\'done\',\'' + o.id + '\')">จัดเสร็จ ✓</button></div>').join('') + '</div>';
+    '</div><div class="muted">จัดเสร็จแล้วกด "พร้อมจัดส่ง" ในแอป Grab ระบบปิดงานให้เอง</div></div>').join('') + '</div>';
 }
 
 function viewDash() {
