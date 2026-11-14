@@ -2464,14 +2464,32 @@ function viewMy() {
   if (!mp.duty && !S.me.guest) return bar;
   return bar + viewMyJobs();
 }
+const jobState = {};   // id -> 'saving' | 'ok'
 function viewMyJobs() {
   const mine = S.orders.filter(o => o.status === 'todo' && o.picker_email === S.me.email)
     .sort((a, b) => (b.rider === 'arrived') - (a.rider === 'arrived') || a.created_at - b.created_at);
-  if (!mine.length) return '<div class="card" style="text-align:center;padding:40px">🎉 ตอนนี้ไม่มีงานค้าง<div class="muted">ออเดอร์ใหม่จะเด้งขึ้นที่นี่อัตโนมัติ</div></div>';
+  const flash = Object.keys(jobState).filter(id => jobState[id] === 'ok' && !mine.some(o => o.id === id));
+  const flashHtml = flash.map(id => '<div class="job" style="border-color:var(--ok);background:#eaf7f1"><div class="id">' + esc(id) + '</div><div class="n" style="color:var(--ok);font-weight:600;margin:6px 0 0">✅ ปิดงานสำเร็จ</div></div>').join('');
+  if (!mine.length && !flash.length) return '<div class="card" style="text-align:center;padding:40px">🎉 ตอนนี้ไม่มีงานค้าง<div class="muted">ออเดอร์ใหม่จะเด้งขึ้นที่นี่อัตโนมัติ</div></div>';
   const items = mine.reduce((s, o) => s + o.items, 0);
-  return '<div class="muted" style="margin-bottom:8px">ค้างจัด ' + mine.length + ' ออเดอร์ / ' + items + ' รายการ</div><div class="my">' + mine.map(o =>
-    '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) +
-    '</div><div class="muted">จัดเสร็จแล้วกด "พร้อมจัดส่ง" ในแอป Grab ระบบปิดงานให้เอง</div></div>').join('') + '</div>';
+  return '<div class="muted" style="margin-bottom:8px">ค้างจัด ' + mine.length + ' ออเดอร์ / ' + items + ' รายการ</div><div class="my">' + flashHtml + mine.map(o => {
+    const st = jobState[o.id];
+    const btn = st === 'saving' ? '<button class="p" disabled style="opacity:.75">⏳ กำลังบันทึก…</button>'
+      : st === 'ok' ? '<button class="p" disabled style="background:var(--ok)">✅ ปิดงานสำเร็จ</button>'
+      : '<button class="p" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>';
+    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + btn + '</div>';
+  }).join('') + '</div>';
+}
+function doneJob(id) {
+  if (jobState[id]) return;   // กันกดซ้ำ
+  jobState[id] = 'saving'; render();
+  api('done', { id }).then(r => {
+    if (!r.ok) { delete jobState[id]; alert('ปิดงานไม่สำเร็จ: ' + r.error + ' – กดใหม่อีกครั้ง'); render(); return; }
+    jobState[id] = 'ok';
+    const o = S && S.orders.find(x => x.id === id); if (o) { o.status = 'done'; o.done_at = Date.now(); }   // ยืนยันจากเซิร์ฟเวอร์แล้ว จึงอัปเดตหน้าจอทันที
+    render(); poll();
+    setTimeout(() => { delete jobState[id]; if (S) render(); }, 2500);
+  }).catch(() => { delete jobState[id]; alert('เชื่อมต่อไม่ได้ ยังไม่ได้ปิดงาน – ลองกดใหม่'); render(); });
 }
 
 function viewDash() {
