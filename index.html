@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GO EXPRESS ระยอง – Grab Dispatch</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{--red:#D71920;--bg:#f5f5f6;--b:#e1e3e6;--t:#1d2230;--m:#6a7280;--ok:#12805c;--warn:#c77700}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:15px}
+header{background:var(--red);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+.hr{display:flex;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:#9aa}
+.dot.on{background:#5CFF9D}.dot.off{background:#ffd0d0}
+nav{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--b);background:#fff;overflow:auto}
+nav button{background:none;border:0;padding:10px 14px;font:inherit;color:var(--m);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav button.on{color:var(--red);border-color:var(--red);font-weight:600}
+main{max-width:1150px;margin:0 auto;padding:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.k{background:#fff;border:1px solid var(--b);border-radius:10px;padding:10px 12px}
+.k b{display:block;font-size:26px}.k span{color:var(--m);font-size:12.5px}
+.k.alert b{color:var(--red)}
+.card{background:#fff;border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--b);vertical-align:middle}
+th{color:var(--m);font-weight:500;font-size:12.5px}
+.chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;background:#eef0f3;color:var(--m)}
+.chip.red{background:#fde8e9;color:var(--red);font-weight:600}.chip.ok{background:#e3f4ec;color:var(--ok)}.chip.warn{background:#fff1dc;color:var(--warn)}
+button.p{background:var(--red);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+button.s{background:#fff;color:var(--t);border:1px solid var(--b);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer;font-size:13px}
+input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radius:8px;background:#fff}
+.bar{height:10px;background:#eceef1;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--red)}
+.pl{display:grid;grid-template-columns:130px 1fr 120px;gap:10px;align-items:center;margin-bottom:8px;font-size:14px}
+.my{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.job{background:#fff;border:2px solid var(--b);border-radius:12px;padding:14px}
+.job.urgent{border-color:var(--red);background:#fff6f6}
+.job .id{font-size:26px;font-weight:700}.job .n{font-size:15px;margin:2px 0 10px;color:var(--m)}
+.job button{width:100%;padding:12px;font-size:16px}
+.login{max-width:380px;margin:12vh auto;background:#fff;border:1px solid var(--b);border-radius:14px;padding:26px;text-align:center}
+.err{color:var(--red);margin-top:10px;font-size:14px}.muted{color:var(--m);font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const API_URL   = 'https://script.google.com/macros/s/AKfycbwEQCShLwLlx9EcZ11TUpthRd5AhJLeEAAfcSh3KKREd3HlsEcDvsC4mNZIJgWzccWw/exec';
+const CLIENT_ID = '377918343945-ie4gvtkean49mrvuk11e0oqg1005rqi4.apps.googleusercontent.com';
+
+let token = null, S = null, tab = null, loginMsg = '', busy = false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mins = ms => Math.max(0, Math.floor(ms / 60000));
+
+function api(action, extra) {
+  return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action, token }, extra || {})) }).then(r => r.json());
+}
+function jwtEmail(t) { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).email; } catch (e) { return ''; } }
+
+function initGoogle() {
+  if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
+  google.accounts.id.initialize({ client_id: CLIENT_ID, auto_select: true, callback: r => { token = r.credential; try { localStorage.setItem('gd_token', token); } catch (e) {} loginMsg = ''; poll(); } });
+  if (!token) showLogin();
+}
+function showLogin() {
+  S = null;
+  $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 4px;color:var(--red)">GO EXPRESS ระยอง</h2><div class="muted" style="margin-bottom:16px">ระบบกระจายออเดอร์ Grab</div><div id="gbtn" style="display:flex;justify-content:center"></div><div class="err">' + esc(loginMsg) + '</div></div>';
+  if (window.google && google.accounts) google.accounts.id.renderButton($('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with', locale: 'th' });
+}
+
+function poll() {
+  if (!token || busy) return;
+  busy = true;
+  api('list').then(res => {
+    busy = false;
+    if (!res.ok) {
+      if (res.error === 'bad_token') { token = null; try { localStorage.removeItem('gd_token'); } catch (e) {} loginMsg = ''; showLogin(); try { google.accounts.id.prompt(); } catch (e) {} }
+      else if (res.error === 'not_allowed') { loginMsg = 'บัญชี ' + jwtEmail(token) + ' ยังไม่ได้รับสิทธิ์ – แจ้งผู้ดูแลให้เพิ่มอีเมลนี้'; token = null; try { localStorage.removeItem('gd_token'); } catch (e) {} showLogin(); }
+      else { loginMsg = 'เกิดข้อผิดพลาด: ' + res.error; if (!S) showLogin(); }
+      return;
+    }
+    S = res; if (!tab) tab = res.me.role === 'picker' ? 'my' : 'dash'; render();
+  }).catch(() => { busy = false; if (S) { S.offline = true; render(); } });
+}
+
+function riderChip(r) {
+  if (r === 'arrived') return '<span class="chip red">ไรเดอร์มาถึงแล้ว</span>';
+  if (r === 'searching') return '<span class="chip warn">กำลังหาไรเดอร์</span>';
+  if (/^eta:/.test(r || '')) return '<span class="chip">ไรเดอร์อีก ' + r.slice(4) + ' นาที</span>';
+  return '<span class="chip">-</span>';
+}
+const startOfDay = () => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+
+function render() {
+  const me = S.me, isAdmin = me.role === 'admin', now = S.now;
+  const tabs = [];
+  if (me.role === 'picker') tabs.push(['my', 'งานของฉัน']);
+  tabs.push(['dash', 'Dashboard']);
+  if (isAdmin) tabs.push(['team', 'ทีมงาน']);
+  if (!tabs.some(t => t[0] === tab)) tab = tabs[0][0];
+  const age = S.reader.ts ? now - S.reader.ts : Infinity;
+  const online = age < 120000;
+  const readerTxt = S.reader.ts ? (online ? 'ตัวอ่าน Grab ออนไลน์ (' + Math.floor(age / 1000) + ' วิที่แล้ว)' : 'ตัวอ่าน Grab หยุดทำงาน ' + mins(age) + ' นาที') : 'ยังไม่เคยรับข้อมูลจาก Grab';
+  let h = '<header><h1>🛵 GO EXPRESS ระยอง – Grab Dispatch</h1><div class="hr"><span><span class="dot ' + (online ? 'on' : 'off') + '"></span>' + readerTxt + '</span>' +
+    '<span>' + esc(me.name) + ' · ' + esc(me.role) + '</span><button class="s" onclick="logout()">ออกจากระบบ</button></div></header>' +
+    '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</nav><main>';
+  if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
+  if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
+  h += tab === 'my' ? viewMy() : tab === 'dash' ? viewDash() : viewTeam();
+  $('app').innerHTML = h + '</main>';
+}
+
+function viewMy() {
+  const mine = S.orders.filter(o => o.status === 'todo' && o.picker_email === S.me.email)
+    .sort((a, b) => (b.rider === 'arrived') - (a.rider === 'arrived') || a.created_at - b.created_at);
+  if (!mine.length) return '<div class="card" style="text-align:center;padding:40px">🎉 ตอนนี้ไม่มีงานค้าง<div class="muted">ออเดอร์ใหม่จะเด้งขึ้นที่นี่อัตโนมัติ</div></div>';
+  const items = mine.reduce((s, o) => s + o.items, 0);
+  return '<div class="muted" style="margin-bottom:8px">ค้างจัด ' + mine.length + ' ออเดอร์ / ' + items + ' รายการ</div><div class="my">' + mine.map(o =>
+    '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) +
+    '</div><button class="p" onclick="act(\'done\',\'' + o.id + '\')">จัดเสร็จ ✓</button></div>').join('') + '</div>';
+}
+
+function viewDash() {
+  const isAdmin = S.me.role === 'admin', now = S.now, sod = startOfDay();
+  const todo = S.orders.filter(o => o.status === 'todo');
+  const doneToday = S.orders.filter(o => o.status === 'done' && o.done_at >= sod);
+  const avg = doneToday.length ? Math.round(doneToday.reduce((s, o) => s + (o.done_at - o.created_at), 0) / doneToday.length / 60000) : 0;
+  const oldest = todo.length ? mins(now - Math.min.apply(null, todo.map(o => o.created_at))) : 0;
+  const waiting = todo.filter(o => o.rider === 'arrived').length;
+  const unassigned = todo.filter(o => !o.picker_email).length;
+  const pickers = S.pickers.filter(p => p.role === 'picker');
+  const load = {}; pickers.forEach(p => load[p.key] = { items: 0, count: 0, done: 0 });
+  todo.forEach(o => { if (load[o.picker_email]) { load[o.picker_email].items += o.items; load[o.picker_email].count++; } });
+  doneToday.forEach(o => { if (load[o.picker_email]) load[o.picker_email].done++; });
+  const mx = Math.max.apply(null, Object.keys(load).map(k => load[k].items).concat([1]));
+  let h = '<div class="kpis">' +
+    '<div class="k"><b>' + todo.length + '</b><span>ออเดอร์รอจัด</span></div>' +
+    '<div class="k"><b>' + todo.reduce((s, o) => s + o.items, 0) + '</b><span>รายการสินค้ารอจัด</span></div>' +
+    '<div class="k ' + (waiting ? 'alert' : '') + '"><b>' + waiting + '</b><span>ไรเดอร์รอรับของ</span></div>' +
+    '<div class="k ' + (oldest >= 10 ? 'alert' : '') + '"><b>' + oldest + '</b><span>นาที – ออเดอร์รอนานสุด</span></div>' +
+    '<div class="k"><b>' + doneToday.length + '</b><span>จัดเสร็จวันนี้</span></div>' +
+    '<div class="k"><b>' + avg + '</b><span>นาที – เวลาเฉลี่ยต่อออเดอร์</span></div>' +
+    (unassigned ? '<div class="k alert"><b>' + unassigned + '</b><span>ยังไม่มีคนรับ (ไม่มีคนจัดเข้างาน?)</span></div>' : '') + '</div>';
+  h += '<div class="card"><h2>ภาระงานรายคน</h2>' + (pickers.length ? pickers.map(p => {
+    const l = load[p.key];
+    return '<div class="pl"><span' + (p.active ? '' : ' class="muted"') + '>' + esc(p.name) + (p.active ? '' : ' (พัก)') + '</span><div class="bar"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div><span class="muted">ค้าง ' + l.count + ' / ' + l.items + ' รายการ · เสร็จ ' + l.done + '</span></div>';
+  }).join('') : '<div class="muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
+  const list = todo.concat(S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 25))
+    .sort((a, b) => (a.status === 'todo' ? 0 : 1) - (b.status === 'todo' ? 0 : 1) || a.created_at - b.created_at);
+  const opts = o => pickers.filter(p => p.active).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+  h += '<div class="card"><h2>รายการออเดอร์</h2><div style="overflow:auto"><table><tr><th>ออเดอร์</th><th>รายการ</th><th>ผู้จัด</th><th>ไรเดอร์</th><th>รอมา</th><th>สถานะ</th></tr>' + list.map(o => {
+    const st = o.status === 'todo' ? '<span class="chip warn">รอจัด</span>' : o.status === 'done' ? '<span class="chip ok">จัดเสร็จ ' + mins(o.done_at - o.created_at) + ' น.</span>' : '<span class="chip">ส่งต่อไรเดอร์แล้ว</span>';
+    const who = isAdmin && o.status === 'todo' ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)"><option value="">' + (o.picker_email ? '' : '— ยังไม่มี —') + '</option>' + opts(o) + '</select>' : esc(o.picker_name || '-');
+    return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + who + '</td><td>' + (o.status === 'todo' ? riderChip(o.rider) : '') + '</td><td>' + (o.status === 'todo' ? mins(now - o.created_at) + ' นาที' : '') + '</td><td>' + st + '</td></tr>';
+  }).join('') + '</table></div></div>';
+  return h;
+}
+
+function viewTeam() {
+  return '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด (ล็อกอินด้วย Google ตามอีเมลที่เพิ่มไว้) ปิด "เข้างาน" = พักและงานค้างจะถูกแจกให้คนอื่นทันที</div>' +
+    '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>เข้างาน</th><th></th></tr>' + S.pickers.map(p =>
+      '<tr><td>' + esc(p.name) + '</td><td class="muted">' + esc(p.email) + '</td><td>' + esc(p.role) + '</td><td><input type="checkbox" ' + (p.active ? 'checked' : '') + ' onchange="savePicker(\'' + esc(p.email) + '\',\'' + esc(p.name).replace(/'/g, '') + '\',\'' + p.role + '\',this.checked)"></td><td><button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
+    '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>' +
+    '<div class="card"><h2>เครื่องมือ</h2><button class="s" onclick="if(confirm(\'แจกงานค้างทั้งหมดใหม่ตามภาระงานปัจจุบัน?\'))act(\'redistribute\')">แจกงานค้างใหม่ทั้งหมด</button></div>';
+}
+
+function setTab(t) { tab = t; render(); }
+function act(action, id, email) { api(action, { id, email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
+function savePicker(email, name, role, active) { api('savePicker', { email, name, role, active }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
+function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
+function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); poll(); }); }
+function logout() { token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
+
+try { token = localStorage.getItem('gd_token'); } catch (e) {}
+$('app').innerHTML = '<div class="login">กำลังโหลด…</div>';
+initGoogle();
+if (token) poll();
+setInterval(poll, 8000);
+</script>
+</body>
+</html>
