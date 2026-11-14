@@ -41,6 +41,9 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .job button{width:100%;padding:12px;font-size:16px}
 .login{max-width:380px;margin:12vh auto;background:#fff;border:1px solid var(--b);border-radius:14px;padding:26px;text-align:center}
 .err{color:var(--red);margin-top:10px;font-size:14px}.muted{color:var(--m);font-size:13px}
+.duty{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:12px;padding:12px 16px;margin-bottom:12px;border:2px solid var(--ok);background:#eaf7f1}
+.duty.brk{border-color:var(--warn);background:#fff6e6}
+.duty b{font-size:16px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
@@ -120,7 +123,19 @@ function render() {
   Object.keys(draft).forEach(k => { const el = $(k); if (el) el.value = draft[k]; });   // คืนค่าที่พิมพ์ค้างไว้
 }
 
+function dutyBar() {
+  const mp = S.pickers.find(p => p.key === S.me.email) || { duty: true };
+  return mp.duty
+    ? '<div class="duty"><div><b>🟢 พร้อมรับงาน</b><div class="muted">ระบบแจกออเดอร์ให้คุณอัตโนมัติ · จะไปพักให้กดปุ่มทางขวา</div></div><button class="s" style="padding:10px 18px" onclick="setDuty(false)">☕ พักก่อน</button></div>'
+    : '<div class="duty brk"><div><b>☕ กำลังพัก</b><div class="muted">ตอนนี้ไม่มีงานใหม่เข้า งานที่ค้างถูกส่งให้เพื่อนแล้ว</div></div><button class="p" style="padding:10px 18px" onclick="setDuty(true)">กลับมารับงาน</button></div>';
+}
 function viewMy() {
+  const bar = dutyBar();
+  const mp = S.pickers.find(p => p.key === S.me.email) || { duty: true };
+  if (!mp.duty) return bar;
+  return bar + viewMyJobs();
+}
+function viewMyJobs() {
   const mine = S.orders.filter(o => o.status === 'todo' && o.picker_email === S.me.email)
     .sort((a, b) => (b.rider === 'arrived') - (a.rider === 'arrived') || a.created_at - b.created_at);
   if (!mine.length) return '<div class="card" style="text-align:center;padding:40px">🎉 ตอนนี้ไม่มีงานค้าง<div class="muted">ออเดอร์ใหม่จะเด้งขึ้นที่นี่อัตโนมัติ</div></div>';
@@ -150,14 +165,14 @@ function viewDash() {
     '<div class="k ' + (oldest >= 10 ? 'alert' : '') + '"><b>' + oldest + '</b><span>นาที – ออเดอร์รอนานสุด</span></div>' +
     '<div class="k"><b>' + doneToday.length + '</b><span>จัดเสร็จวันนี้</span></div>' +
     '<div class="k"><b>' + avg + '</b><span>นาที – เวลาเฉลี่ยต่อออเดอร์</span></div>' +
-    (unassigned ? '<div class="k alert"><b>' + unassigned + '</b><span>ยังไม่มีคนรับ (ไม่มีคนจัดเข้างาน?)</span></div>' : '') + '</div>';
+    (unassigned ? '<div class="k alert"><b>' + unassigned + '</b><span>ยังไม่มีคนรับ (ไม่มีคนจัดออนไลน์?)</span></div>' : '') + '</div>';
   h += '<div class="card"><h2>ภาระงานรายคน</h2>' + (pickers.length ? pickers.map(p => {
     const l = load[p.key];
-    return '<div class="pl"><span' + (p.active ? '' : ' class="muted"') + '>' + esc(p.name) + (p.active ? '' : ' (พัก)') + '</span><div class="bar"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div><span class="muted">ค้าง ' + l.count + ' / ' + l.items + ' รายการ · เสร็จ ' + l.done + '</span></div>';
+    return '<div class="pl"><span' + (p.active && p.duty && p.online ? '' : ' class="muted"') + '>' + esc(p.name) + (!p.active ? ' (ไม่อยู่ในทีม)' : !p.duty ? ' (พัก)' : !p.online ? ' (ออฟไลน์)' : ' 🟢') + '</span><div class="bar"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div><span class="muted">ค้าง ' + l.count + ' / ' + l.items + ' รายการ · เสร็จ ' + l.done + '</span></div>';
   }).join('') : '<div class="muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const list = todo.concat(S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 25))
     .sort((a, b) => (a.status === 'todo' ? 0 : 1) - (b.status === 'todo' ? 0 : 1) || a.created_at - b.created_at);
-  const opts = o => pickers.filter(p => p.active).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+  const opts = o => pickers.filter(p => p.active && p.duty && p.online).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
   h += '<div class="card"><h2>รายการออเดอร์</h2><div style="overflow:auto"><table><tr><th>ออเดอร์</th><th>รายการ</th><th>ผู้จัด</th><th>ไรเดอร์</th><th>รอมา</th><th>สถานะ</th></tr>' + list.map(o => {
     const st = o.status === 'todo' ? '<span class="chip warn">รอจัด</span>' : o.status === 'done' ? '<span class="chip ok">จัดเสร็จ ' + mins(o.done_at - o.created_at) + ' น.</span>' : '<span class="chip">ส่งต่อไรเดอร์แล้ว</span>';
     const who = isAdmin && o.status === 'todo' ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)"><option value="">' + (o.picker_email ? '' : '— ยังไม่มี —') + '</option>' + opts(o) + '</select>' : esc(o.picker_name || '-');
@@ -167,19 +182,20 @@ function viewDash() {
 }
 
 function viewTeam() {
-  return '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด (ล็อกอินด้วย Google ตามอีเมลที่เพิ่มไว้) ปิด "เข้างาน" = พักและงานค้างจะถูกแจกให้คนอื่นทันที</div>' +
-    '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>เข้างาน</th><th></th></tr>' + S.pickers.map(p =>
-      '<tr><td>' + esc(p.name) + '</td><td class="muted">' + esc(p.email) + '</td><td>' + esc(p.role) + '</td><td><input type="checkbox" ' + (p.active ? 'checked' : '') + ' onchange="savePicker(\'' + esc(p.email) + '\',\'' + esc(p.name).replace(/'/g, '') + '\',\'' + p.role + '\',this.checked)"></td><td><button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
+  return '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด (ล็อกอินด้วย Google ตามอีเมลที่เพิ่มไว้) คนจัดล็อกอินแล้ว = เข้างานเอง กดพักเองได้ในหน้า "งานของฉัน" ส่วนช่อง "อยู่ในทีม" ใช้เมื่อหยุดยาว/ลาออก (แอดมินปิดให้)</div>' +
+    '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + S.pickers.map(p =>
+      '<tr><td>' + esc(p.name) + '</td><td class="muted">' + esc(p.email) + '</td><td>' + esc(p.role) + '</td><td><input type="checkbox" ' + (p.active ? 'checked' : '') + ' onchange="savePicker(\'' + esc(p.email) + '\',\'' + esc(p.name).replace(/'/g, '') + '\',\'' + p.role + '\',this.checked)"></td><td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td><td><button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
     '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>' +
     '<div class="card"><h2>เครื่องมือ</h2><button class="s" onclick="if(confirm(\'แจกงานค้างทั้งหมดใหม่ตามภาระงานปัจจุบัน?\'))act(\'redistribute\')">แจกงานค้างใหม่ทั้งหมด</button></div>';
 }
 
+function setDuty(on) { if (S) { const mp = S.pickers.find(p => p.key === S.me.email); if (mp) mp.duty = on; render(); } api('duty', { on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function setTab(t) { tab = t; render(); }
 function act(action, id, email) { api(action, { id, email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function savePicker(email, name, role, active) { api('savePicker', { email, name, role, active }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); else { delete draft.nName; delete draft.nMail; } poll(); }); }
-function logout() { token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
+function logout() { try { if (token) api('logout'); } catch (e) {} token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
 
 try { token = localStorage.getItem('gd_token'); } catch (e) {}
 $('app').innerHTML = '<div class="login">กำลังโหลด…</div>';
