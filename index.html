@@ -2633,13 +2633,13 @@ function viewDash() {
   const mxT = Math.max.apply(null, rowsD.map(r => r.t / r.n).concat([1]));
   // ช่วงเวลาความหนาแน่น
   const hc = new Array(24).fill(0), dayHour = {};
-  os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); hc[hr]++; (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; });
-  let first = 24, last = -1; hc.forEach((n, i) => { if (n) { first = Math.min(first, i); last = Math.max(last, i); } });
+  os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; if (o.created_at >= startOfDay()) hc[hr]++; });   // กราฟแท่งด้านบน = วันปัจจุบันเสมอ
+  let first = 24, last = -1; Object.keys(dayHour).forEach(k => dayHour[k].forEach((n, i) => { if (n) { first = Math.min(first, i); last = Math.max(last, i); } }));
   const h0 = Math.min(7, first === 24 ? 7 : first), h1 = Math.max(21, last);
   const mxH = Math.max.apply(null, hc.concat([1])), peak = hc.indexOf(mxH);
   const pad = n => (n < 10 ? '0' : '') + n;
   let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 มอนิเตอร์วันนี้</button>' +
-    '<b style="margin-left:8px">ภาพรวม Performance:</b>' + [['7', '7 วัน'], ['14', '14 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
+    '<b style="margin-left:8px">ภาพรวม Performance:</b>' + [['7', '7 วัน'], ['14', '14 วัน'], ['30', '30 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
     '<span style="flex:1"></span><span class="muted">ปิดตามเวลา = ภายใน</span><select onchange="setSla(this.value)">' + [5, 10, 15, 20, 30, 45, 60].map(m => '<option value="' + m + '"' + (m === slaMin ? ' selected' : '') + '>' + m + ' นาที</option>').join('') + '</select>' +
     '<button onclick="exportCsv()">⬇ CSV</button></div>';
   h += '<div class="muted" style="margin:-4px 0 10px">' + (range === 'today' ? 'กำลังดูข้อมูลของวันนี้ (' + new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : 'กำลังดูภาพรวมย้อนหลัง ' + days + ' วัน') + '</div>';
@@ -2665,12 +2665,15 @@ function viewDash() {
   h += '<div class="g2"><div class="card"><h2>สัดส่วนออเดอร์ที่จัดเสร็จ รายคน</h2>' + donut + '</div>' +
     '<div class="card"><h2>เวลาหยิบเฉลี่ยต่อออเดอร์ รายคน</h2>' + (rowsD.length ? rowsD.map((r, i) => { const t = Math.round(r.t / r.n); return '<div class="hbar"><span>' + esc(r.name) + '</span><div class="bar"><i style="width:' + Math.round(r.t / r.n / mxT * 100) + '%;background:' + COLORS[i % COLORS.length] + '"></i></div><b>' + t + ' นาที</b></div>'; }).join('') + '<div class="muted" style="margin-top:6px">นับจากเวลาที่ได้รับมอบหมายถึงเวลาที่กดจัดเสร็จ</div>' : '<div class="muted">ยังไม่มีข้อมูล</div>') + '</div></div>';
   // ความหนาแน่น
-  h += '<div class="card"><h2>ความหนาแน่นของออเดอร์ตามช่วงเวลา</h2>' + (os.length ? '<div class="muted" style="margin-bottom:8px">ออเดอร์เข้าหนาแน่นสุดช่วง <b style="color:var(--red)">' + pad(peak) + ':00–' + pad(peak + 1) + ':00 น.</b> (' + mxH + ' ออเดอร์' + (days > 1 ? ' รวม ' + days + ' วัน' : '') + ')</div>' : '') +
+  h += '<div class="card"><h2>ความหนาแน่นของออเดอร์ตามช่วงเวลา – วันนี้ (' + new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ')</h2>' + (mxH > 1 || hc.some(n => n) ? '<div class="muted" style="margin-bottom:8px">วันนี้ออเดอร์เข้าหนาแน่นสุดช่วง <b style="color:var(--red)">' + pad(peak) + ':00–' + pad(peak + 1) + ':00 น.</b> (' + mxH + ' ออเดอร์)</div>' : '<div class="muted" style="margin-bottom:8px">วันนี้ยังไม่มีออเดอร์เข้า</div>') +
     '<div class="hours">' + hc.slice(h0, h1 + 1).map((n, i) => '<div class="' + (h0 + i === peak && n ? 'pk' : '') + '" style="height:' + Math.max(n ? 4 : 1, Math.round(n / mxH * 100)) + '%" title="' + pad(h0 + i) + ':00 – ' + n + ' ออเดอร์"></div>').join('') + '</div>' +
     '<div class="hlab">' + hc.slice(h0, h1 + 1).map((n, i) => '<span>' + (h0 + i) + '</span>').join('') + '</div>' +
-    '<div class="muted" style="margin:14px 0 4px">แยกรายวัน (ตัวเลข = จำนวนออเดอร์ที่เข้าในชั่วโมงนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวม</th></tr>' +
-    Array.from({ length: days }, (_, i) => { const d = new Date(from + (days - 1 - i) * 86400000), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), arr = dayHour[dk] || new Array(24).fill(0);
-      return '<tr><td class="l">' + d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) + '</td>' + arr.slice(h0, h1 + 1).map(n => '<td style="' + (n ? 'background:rgba(215,25,32,' + (0.1 + 0.8 * n / mxH).toFixed(2) + ');color:' + (n / mxH > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>').join('') + '<td><b>' + arr.reduce((s, n) => s + n, 0) + '</b></td></tr>'; }).join('') + '</table></div></div>';
+    '<div class="muted" style="margin:14px 0 4px">แยกรายวัน – ออเดอร์สะสม (ตัวเลข = จำนวนออเดอร์สะสมตั้งแต่เปิดร้านจนถึงสิ้นชั่วโมงนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวม</th></tr>' +
+    (function () {
+      const rowsC = Array.from({ length: days }, (_, i) => { const d = new Date(from + (days - 1 - i) * 86400000), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), arr = dayHour[dk] || new Array(24).fill(0); let c = 0; return { d: d, tot: arr.reduce((x, n) => x + n, 0), cum: arr.map(n => (c += n)) }; });
+      const mxC = Math.max.apply(null, rowsC.map(r => r.tot).concat([1]));
+      return rowsC.map(r => '<tr><td class="l">' + r.d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) + '</td>' + r.cum.slice(h0, h1 + 1).map((n, i) => { const isToday = r.d.toDateString() === new Date().toDateString(); if (isToday && h0 + i > new Date().getHours()) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + r.tot + '</b></td></tr>').join('');
+    })() + '</table></div></div>';
   return h;
 }
 function exportCsv() {
