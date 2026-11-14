@@ -70,6 +70,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .it{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #f0f1f3;align-items:flex-start}.it:last-child{border-bottom:0}
 .it .q{min-width:38px;font-weight:700;color:var(--red);font-size:15px}.it small{color:var(--m);display:block}
 .it .nw{background:#e3f4ec;color:var(--ok);border-radius:8px;padding:0 6px;font-size:11.5px;font-weight:600;margin-left:4px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1d2230;color:#fff;padding:11px 18px;border-radius:24px;font-size:15px;z-index:9999;box-shadow:0 4px 16px #0005;max-width:90vw;text-align:center}.toast.ok{background:#12805c}.toast.bad{background:#D71920}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
@@ -2385,6 +2386,12 @@ try { gtoken = localStorage.getItem('gd_gtoken'); } catch (e) {}
 const draft = {};
 document.addEventListener('input', e => { if (e.target && e.target.id) draft[e.target.id] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
 const $ = id => document.getElementById(id);
+let toastTimer = null;
+function toast(msg, bad) {
+  let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.className = 'toast ' + (bad ? 'bad' : 'ok'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = ms => Math.max(0, Math.floor(ms / 60000));
 
@@ -2404,7 +2411,8 @@ function showJoin(msg) {
   $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 4px;color:var(--red)">ผู้ช่วยจัดออเดอร์ด่วน</h2><div class="muted" style="margin-bottom:14px">GO EXPRESS ระยอง · ใส่ชื่อแล้วรอผู้ดูแลกดอนุมัติ</div><div class="row" style="justify-content:center"><input id="gName" placeholder="ชื่อของคุณ" maxlength="30"><button class="p" onclick="guestJoin()">ขอเข้าช่วย</button></div><div class="err">' + esc(msg || '') + '</div></div>';
 }
 function guestJoin() {
-  const name = ($('gName').value || '').trim(); if (!name) return;
+  const name = ($('gName').value || '').trim(); if (!name) { alert('กรุณาใส่ชื่อของคุณก่อน'); return; }
+  if (!confirm('ยืนยันขอเข้าช่วยจัดออเดอร์ในชื่อ "' + name + '" ?\n\n⚠️ ระบบจะส่งคำขอไปให้ผู้ดูแล คุณจะเริ่มรับงานได้ก็ต่อเมื่อผู้ดูแลกดอนุมัติแล้วเท่านั้น')) return;
   api('guestJoin', { code: joinParam, name }).then(r => {
     if (!r.ok) { showJoin(r.error === 'bad_code' ? 'QR นี้หมดอายุแล้ว ขอให้ผู้ดูแลสร้าง QR ใหม่' : 'ไม่สำเร็จ: ' + r.error); return; }
     gtoken = r.gtoken; try { localStorage.setItem('gd_gtoken', gtoken); } catch (e) {}
@@ -2500,10 +2508,11 @@ function viewMyJobs() {
 }
 function doneJob(id) {
   if (jobState[id]) return;   // กันกดซ้ำ
+  if (!confirm('ปิดงาน ' + id + ' (จัดเสร็จแล้ว) ใช่ไหม?')) return;
   jobState[id] = 'saving'; render();
   api('done', { id }).then(r => {
     if (!r.ok) { delete jobState[id]; alert('ปิดงานไม่สำเร็จ: ' + r.error + ' – กดใหม่อีกครั้ง'); render(); return; }
-    jobState[id] = 'ok';
+    jobState[id] = 'ok'; toast('✅ ปิดงาน ' + id + ' สำเร็จ');
     const o = S && S.orders.find(x => x.id === id); if (o) { o.status = 'done'; o.done_at = Date.now(); }   // ยืนยันจากเซิร์ฟเวอร์แล้ว จึงอัปเดตหน้าจอทันที
     render(); poll();
     setTimeout(() => { delete jobState[id]; if (S) render(); }, 2500);
@@ -2541,16 +2550,14 @@ function viewMonitor() {
     const jobs = mine(p);
     return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3><div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
       (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
-        (isAdmin ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
+        (isAdmin ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
-  const list = todo.concat(S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 25))
-    .sort((a, b) => (a.status === 'todo' ? 0 : 1) - (b.status === 'todo' ? 0 : 1) || a.created_at - b.created_at);
-  const opts = o => pickers.filter(p => p.active && p.duty && p.online).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
-  h += '<div class="card"><h2>รายการออเดอร์</h2><div style="overflow:auto"><table><tr><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>ไรเดอร์</th><th>รอมา</th><th>สถานะ</th></tr>' + list.map(o => {
-    const st = o.status === 'todo' ? '<span class="chip warn">รอจัด</span>' : o.status === 'done' ? '<span class="chip ok">จัดเสร็จ ' + mins(o.done_at - o.created_at) + ' น.</span>' : '<span class="chip">ส่งต่อไรเดอร์แล้ว</span>';
-    const who = isAdmin && o.status === 'todo' ? '<select onchange="act(\'reassign\',\'' + o.id + '\',this.value)"><option value="">' + (o.picker_email ? '' : '— ยังไม่มี —') + '</option>' + opts(o) + '</select>' : esc(o.picker_name || '-');
-    return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + who + '</td><td>' + (o.status === 'todo' ? riderChip(o.rider) : '') + '</td><td>' + (o.status === 'todo' ? mins(now - o.created_at) + ' นาที' : '') + '</td><td>' + st + '</td></tr>';
-  }).join('') + '</table></div></div>';
+  const hist = S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 80);
+  const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+  h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(ปิดล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
+    const st = o.status === 'done' ? '<span class="chip ok">จัดเสร็จ ' + pickMin(o) + ' น.</span>' : '<span class="chip">ส่งต่อไรเดอร์แล้ว</span>';
+    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="muted">ยังไม่มีออเดอร์ที่ปิด</td></tr>') + '</table></div></div>';
   return h;
 }
 
@@ -2584,7 +2591,7 @@ function redistributeNow() {
   dispState = 'saving'; render();
   api('redistribute').then(r => {
     if (!r.ok) { dispState = ''; alert('กระจายไม่สำเร็จ: ' + r.error); render(); return; }
-    dispState = 'ok'; render(); poll();
+    dispState = 'ok'; toast('✅ กระจายงานค้างเรียบร้อยแล้ว'); render(); poll();
     setTimeout(() => { dispState = ''; if (S) render(); }, 2500);
   }).catch(() => { dispState = ''; alert('เชื่อมต่อไม่ได้ ยังไม่ได้กระจายงาน'); render(); });
 }
@@ -2640,29 +2647,37 @@ function viewDash() {
   return h;
 }
 function exportCsv() {
+  if (!confirm('ดาวน์โหลดไฟล์ CSV ออเดอร์ของช่วงเวลาที่เลือก?')) return;
   const { os } = rangeOrders(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', t = ms => ms ? new Date(ms).toLocaleString('sv-SE') : '';
   const lines = [['order', 'items', 'amount', 'picker', 'status', 'created', 'assigned', 'done', 'pick_minutes'].map(q).join(',')].concat(os.map(o =>
     [o.id, o.items, o.amount || 0, o.picker_name, o.status, t(o.created_at), t(o.assigned_at), t(o.done_at), o.status === 'done' ? pickMin(o) : ''].map(q).join(',')));
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'grab-orders-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  a.download = 'grab-orders-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove(); toast('✅ ดาวน์โหลดไฟล์ CSV แล้ว');
 }
 
 function guestPanel() {
   const gs = S.guests || [], pend = gs.filter(g => g.status === 'pending'), act = gs.filter(g => g.status === 'active');
   let h = '';
   if (pend.length) h += '<div class="card" style="border-color:var(--red);background:#fff6f6"><h2>🙋 มีผู้ขอเข้าช่วยจัดออเดอร์ ' + pend.length + ' คน</h2>' + pend.map(g =>
-    '<div class="row" style="margin-bottom:6px"><b>' + esc(g.name) + '</b><span class="muted">ขอเมื่อ ' + mins(S.now - g.created_at) + ' นาทีก่อน</span><button class="p" onclick="guestAct(\'guestApprove\',\'' + g.id + '\')">อนุมัติ</button><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\')">ปฏิเสธ</button></div>').join('') + '</div>';
+    '<div class="row" style="margin-bottom:6px"><b>' + esc(g.name) + '</b><span class="muted">ขอเมื่อ ' + mins(S.now - g.created_at) + ' นาทีก่อน</span><button class="p" onclick="guestAct(\'guestApprove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\')">อนุมัติ</button><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'reject\')">ปฏิเสธ</button></div>').join('') + '</div>';
   h += '<div class="card"><h2>ผู้ช่วยด่วน (ชั่วคราว)</h2><div class="muted" style="margin-bottom:8px">จัดออเดอร์ไม่ทัน? สร้าง QR ให้คนช่วยสแกน ไม่ต้องมีบัญชี Google · ขอเข้าแล้วกดอนุมัติ ระบบดึงงานค้างมาแบ่งให้ทันที · ผู้ช่วยกดยกเลิกหรือคุณกดเอาออก งานจะกลับไปแจกใหม่เอง</div>' +
-    act.map(g => '<div class="row" style="margin-bottom:6px"><span class="chip ok">ผู้ช่วยด่วน</span><b>' + esc(g.name) + '</b><span class="muted">หมดเวลาใน ' + Math.max(0, Math.round((g.expires_at - S.now) / 3600000)) + ' ชม.</span><button class="s" onclick="if(confirm(\'ให้ ' + esc(g.name).replace(/\'/g, '') + ' ออกจากระบบ?\'))guestAct(\'guestRemove\',\'' + g.id + '\')">เอาออก</button></div>').join('') +
+    act.map(g => '<div class="row" style="margin-bottom:6px"><span class="chip ok">ผู้ช่วยด่วน</span><b>' + esc(g.name) + '</b><span class="muted">หมดเวลาใน ' + Math.max(0, Math.round((g.expires_at - S.now) / 3600000)) + ' ชม.</span><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'remove\')">เอาออก</button></div>').join('') +
     '<div class="row" style="margin-top:6px"><button class="p" onclick="newQr()">➕ สร้าง QR ผู้ช่วยด่วน</button></div>';
   if (qr && qr.exp > Date.now()) {
     let svg = ''; try { const q = qrcode(0, 'M'); q.addData(qr.url); q.make(); svg = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch (e) {}
-    h += '<div class="qrbox" style="margin-top:12px">' + svg + '<div><b>ให้ผู้ช่วยสแกน QR นี้</b><div class="muted">ใช้ได้ถึง ' + new Date(qr.exp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น. · สแกนแล้วต้องรอคุณกดอนุมัติ</div><button class="s" style="margin-top:8px" onclick="qr=null;render()">ปิด QR</button></div></div>';
+    h += '<div class="qrbox" style="margin-top:12px">' + svg + '<div><b>ให้ผู้ช่วยสแกน QR นี้</b><div class="muted">ใช้ได้ถึง ' + new Date(qr.exp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น. · สแกนแล้วต้องรอคุณกดอนุมัติ</div><button class="s" style="margin-top:8px" onclick="hideQr()">ปิด QR</button></div></div>';
   }
   return h + '</div>';
 }
-function newQr() { api('joinCode').then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + r.error); return; } qr = { url: location.origin + location.pathname + '?join=' + r.code, exp: r.exp }; render(); }); }
-function guestAct(a, id) { api(a, { id }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
+function hideQr() { if (!confirm('ซ่อน QR นี้?\n\nQR จะยังใช้งานได้จนหมดเวลา (ถ้าอยากให้ใช้ไม่ได้ทันที ให้สร้าง QR ใหม่)')) return; qr = null; render(); toast('ซ่อน QR แล้ว'); }
+function newQr() { if (!confirm('สร้าง QR ผู้ช่วยด่วนใหม่?\n\n⚠️ QR ใบเดิม (ถ้ามี) จะใช้ไม่ได้ทันที ใบใหม่ใช้ได้ 2 ชั่วโมง และคนที่สแกนต้องรอคุณกดอนุมัติก่อนจึงจะรับงานได้')) return; api('joinCode').then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + r.error); return; } qr = { url: location.origin + location.pathname + '?join=' + r.code, exp: r.exp }; toast('✅ สร้าง QR แล้ว ใช้ได้ 2 ชั่วโมง'); render(); }); }
+function guestAct(a, id, name, kind) {
+  const msg = a === 'guestApprove'
+    ? 'อนุมัติ "' + name + '" ให้เข้ามาช่วยจัดออเดอร์?\n\n⚠️ ระบบจะดึงงานค้างบางส่วนจากคนอื่นมาให้ทันที และเขาจะอยู่ในระบบได้ 12 ชั่วโมง กรุณาตรวจสอบว่ารู้จักคนนี้จริงก่อนกดยืนยัน'
+    : kind === 'remove' ? 'ให้ "' + name + '" ออกจากระบบ?\n\n⚠️ งานที่เขาถืออยู่จะถูกส่งต่อให้คนอื่นทันที' : 'ปฏิเสธคำขอของ "' + name + '" ?';
+  if (!confirm(msg)) return;
+  api(a, { id }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); else toast(a === 'guestApprove' ? '✅ อนุมัติ ' + name + ' แล้ว งานถูกแบ่งให้' : kind === 'remove' ? '✅ ให้ ' + name + ' ออกแล้ว งานถูกส่งต่อ' : '✅ ปฏิเสธคำขอแล้ว'); poll(); });
+}
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
 let ctrlMsg = '';
 const ERR = { bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
@@ -2683,19 +2698,27 @@ function clearCtrlDrafts() { Object.keys(draft).forEach(k => { if (/^c[NERA]_/.t
 function editPicker(i, btn) {
   const p = S.pickers.filter(x => !x.guest)[i]; if (!p) return;
   const body = { oldEmail: p.email, email: $('cE_' + i).value.trim(), name: $('cN_' + i).value.trim(), role: $('cR_' + i).value, active: $('cA_' + i).checked };
+  const ch = []; if (body.name !== p.name) ch.push('ชื่อ: ' + p.name + ' → ' + body.name); if (body.email.toLowerCase() !== p.email) ch.push('อีเมล: ' + p.email + ' → ' + body.email);
+  if (body.role !== p.role) ch.push('สิทธิ์: ' + p.role + ' → ' + body.role); if (body.active !== p.active) ch.push(body.active ? 'กลับเข้าทีม' : '⚠️ ออกจากทีม (งานค้างจะถูกแจกให้คนอื่น)');
+  if (!confirm('บันทึกการแก้ไขของ "' + p.name + '" ใช่ไหม?\n\n' + (ch.length ? ch.join('\n') : '(ไม่มีการเปลี่ยนแปลง)'))) return;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก…'; }
   api('savePicker', body).then(r => {
     if (!r.ok) { alert('บันทึกไม่สำเร็จ: ' + (ERR[r.error] || r.error)); if (btn) { btn.disabled = false; btn.textContent = 'บันทึก'; } return; }
-    clearCtrlDrafts(); ctrlMsg = '✅ บันทึกแล้ว: ' + (body.name || body.email); poll(); render(); setTimeout(() => { ctrlMsg = ''; if (S) render(); }, 3500);
+    clearCtrlDrafts(); toast('✅ บันทึกแล้ว: ' + (body.name || body.email)); ctrlMsg = '✅ บันทึกแล้ว: ' + (body.name || body.email); poll(); render(); setTimeout(() => { ctrlMsg = ''; if (S) render(); }, 3500);
   }).catch(() => { alert('เชื่อมต่อไม่ได้ ยังไม่ได้บันทึก'); if (btn) { btn.disabled = false; btn.textContent = 'บันทึก'; } });
 }
-function setDuty(on) { if (S) { const mp = S.pickers.find(p => p.key === S.me.email); if (mp) mp.duty = on; render(); } api('duty', { on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
+function setDuty(on) { if (!confirm(on ? 'กลับมารับงานใช่ไหม?' : 'ไปพักใช่ไหม?\n\n⚠️ งานที่ค้างอยู่ของคุณจะถูกส่งต่อให้คนอื่นทันที และจะไม่มีงานใหม่เข้าจนกว่าจะกดกลับมารับงาน')) return; if (S) { const mp = S.pickers.find(p => p.key === S.me.email); if (mp) mp.duty = on; render(); } api('duty', { on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); else toast(on ? '✅ กลับมารับงานแล้ว' : '✅ บันทึกสถานะพักแล้ว งานค้างถูกส่งต่อให้คนอื่น'); poll(); }); }
 function setTab(t) { tab = t; clearCtrlDrafts(); render(); }
+function reassignJob(id, sel) {
+  const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  if (!sel.value || !confirm('ย้ายออเดอร์ ' + id + ' ไปให้ "' + name + '" ใช่ไหม?')) { render(); return; }
+  api('reassign', { id, email: sel.value }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); else toast('✅ ย้าย ' + id + ' ไปให้ ' + name + ' แล้ว'); poll(); });
+}
 function act(action, id, email) { api(action, { id, email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
 function savePicker(email, name, role, active) { api('savePicker', { email, name, role, active }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
-function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); poll(); }); }
-function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); else { delete draft.nName; delete draft.nMail; } poll(); }); }
-function logout() { try { if (token) api('logout'); } catch (e) {} token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
+function delPicker(email) { if (confirm('ลบ ' + email + ' ออกจากระบบ?\n\n⚠️ งานค้างของคนนี้จะถูกแจกให้คนอื่น และเขาจะล็อกอินไม่ได้อีก')) api('delPicker', { email }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + (ERR[r.error] || r.error)); else toast('✅ ลบ ' + email + ' แล้ว'); poll(); }); }
+function addPicker() { const n = $('nName').value.trim(), m = $('nMail').value.trim(), r = $('nRole').value; if (!m) { alert('กรุณาใส่อีเมล Google ก่อน'); return; } if (!confirm('เพิ่ม "' + (n || m) + '" (' + m + ') เป็น ' + r + ' ใช่ไหม?')) return; api('savePicker', { email: m, name: n || m, role: r, active: true }).then(x => { if (!x.ok) alert('ไม่สำเร็จ: ' + x.error); else { delete draft.nName; delete draft.nMail; toast('✅ เพิ่ม ' + (n || m) + ' แล้ว'); } poll(); }); }
+function logout() { if (!confirm('ออกจากระบบใช่ไหม?' + (S && S.me && S.me.role === 'picker' ? '\n\n⚠️ งานที่ค้างอยู่ของคุณจะถูกส่งต่อให้คนอื่นทันที' : ''))) return; try { if (token) api('logout'); } catch (e) {} token = null; S = null; try { localStorage.removeItem('gd_token'); } catch (e) {} try { google.accounts.id.disableAutoSelect(); } catch (e) {} showLogin(); }
 
 try { token = localStorage.getItem('gd_token'); } catch (e) {}
 if (gtoken) token = null;
