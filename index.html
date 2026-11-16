@@ -2452,6 +2452,7 @@ function poll() {
       return;
     }
     S = res; if (!tab) tab = 'orders';
+    try { notifyNew(); } catch (e) {}
     const ae = document.activeElement;   // ถ้ากำลังพิมพ์/เลือกอยู่ ไม่วาดหน้าใหม่ทับ (กันข้อความหาย)
     if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && $('app').contains(ae)) return;
     render();
@@ -2486,6 +2487,55 @@ function render() {
   Object.keys(draft).forEach(k => { const el = $(k); if (el) { if (el.type === 'checkbox') el.checked = !!draft[k]; else el.value = draft[k]; } });   // คืนค่าที่พิมพ์ค้างไว้
 }
 
+/* ---------- เสียงแจ้งเตือนเมื่อมีออเดอร์ใหม่เข้าคนจัด ---------- */
+const BASE_TITLE = document.title; let actx = null, seenJobs = null, soundOn = true, titleTimer = null;
+try { soundOn = localStorage.getItem('gd_sound') !== '0'; } catch (e) {}
+function unlockAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) {}
+}
+['click', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+function beep() {
+  unlockAudio(); if (!actx || actx.state !== 'running') return;
+  [[880, 0], [1175, 0.22], [880, 0.6], [1175, 0.82]].forEach(n => {
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + n[1];
+    o.type = 'sine'; o.frequency.value = n[0]; o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o.start(t); o.stop(t + 0.32);
+  });
+}
+function speakReady() {   // เสียงพูด "Ready for you" (ใช้เสียงสังเคราะห์ของเครื่อง) – ถ้าเครื่องไม่รองรับ ใช้เสียงติ๊งแทน
+  try {
+    if (!('speechSynthesis' in window)) { beep(); return; }
+    const ss = window.speechSynthesis; ss.cancel();
+    const u = new SpeechSynthesisUtterance('Ready for you'); u.lang = 'en-US'; u.rate = 0.95; u.pitch = 1; u.volume = 1;
+    const v = ss.getVoices().find(x => /^en[-_]US/i.test(x.lang)) || ss.getVoices().find(x => /^en/i.test(x.lang)); if (v) u.voice = v;
+    u.onerror = () => beep();
+    ss.speak(u);
+  } catch (e) { beep(); }
+}
+function notifyNew() {   // เทียบออเดอร์ที่ยังค้างของตัวเองกับรอบก่อน: มีใบใหม่ -> เสียง + สั่น + ชื่อแท็บกะพริบ
+  if (!S || S.me.role === 'admin' || S.me.role === 'viewer' || (S.me.guest && S.me.gstatus === 'pending')) return;
+  const mine = S.orders.filter(o => o.status === 'todo' && o.picker_email === S.me.email).map(o => o.id);
+  if (seenJobs === null) { seenJobs = {}; mine.forEach(id => seenJobs[id] = 1); return; }   // เปิดหน้าครั้งแรก ไม่ส่งเสียงย้อนหลัง
+  const fresh = mine.filter(id => !seenJobs[id]); mine.forEach(id => seenJobs[id] = 1);
+  if (!fresh.length) return;
+  if (soundOn) { speakReady(); try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {} }
+  toast('🔔 มีออเดอร์ใหม่ ' + fresh.join(', '));
+  const base = BASE_TITLE; let on = true; clearInterval(titleTimer);
+  titleTimer = setInterval(() => { document.title = on ? '🔔 ออเดอร์ใหม่!' : base; on = !on; }, 900);
+  setTimeout(() => { clearInterval(titleTimer); document.title = base; }, 15000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearInterval(titleTimer); document.title = BASE_TITLE; } });
+function soundBar() {
+  const locked = !actx || actx.state !== 'running';
+  return '<div class="muted" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><span>🔔 เสียงพูด "Ready for you" เมื่อมีออเดอร์ใหม่: <b>' + (soundOn ? 'เปิด' : 'ปิด') + '</b></span>' +
+    '<button onclick="toggleSound()">' + (soundOn ? 'ปิดเสียง' : 'เปิดเสียง') + '</button><button onclick="speakReady()">ทดสอบเสียง</button>' +
+    (soundOn && locked ? '<span style="color:#d9480f">⚠️ แตะที่หน้าจอ 1 ครั้งเพื่อเปิดเสียง (เบราว์เซอร์กำหนด)</span>' : '') + '</div>';
+}
+function toggleSound() { soundOn = !soundOn; try { localStorage.setItem('gd_sound', soundOn ? '1' : '0'); } catch (e) {} unlockAudio(); render(); }
 function dutyBar() {
   if (S.me.guest) return '<div class="duty"><div><b>🟢 ผู้ช่วยด่วน – พร้อมรับงาน</b><div class="muted">ระบบแจกออเดอร์ให้อัตโนมัติ · เสร็จแล้วกด "ยกเลิก / ออก" มุมขวาบน งานที่เหลือจะส่งต่อให้คนอื่นทันที</div></div></div>';
   const mp = S.pickers.find(p => p.key === S.me.email) || { duty: true };
@@ -2498,7 +2548,7 @@ function closedCard() {
 }
 function viewMy() {
   if (S.sys && S.sys.closed && !S.me.guest) { const me = S.pickers.find(p => p.key === S.me.email); if (!me || !me.online) return closedCard(); }
-  const bar = dutyBar();
+  const bar = dutyBar() + soundBar();
   const mp = S.pickers.find(p => p.key === S.me.email) || { duty: true };
   if (!mp.duty && !S.me.guest) return bar + myHistory();
   return bar + viewMyJobs() + myHistory();
