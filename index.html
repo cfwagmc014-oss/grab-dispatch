@@ -21,7 +21,7 @@ main{max-width:1150px;margin:0 auto;padding:14px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
 .k{--c:#3b5bdb;--t1:#edf2ff;background:linear-gradient(145deg,var(--t1),#fff 85%);border:1px solid var(--t1);border-top:4px solid var(--c);border-radius:12px;padding:10px 12px;box-shadow:0 2px 8px rgba(30,40,80,.07)}
 .k b{color:var(--c)}
-.k.green{--c:#12805c;--t1:#e3f8ee}.k.blue{--c:#1c7ed6;--t1:#e7f3ff}.k.amber{--c:#e67700;--t1:#fff1d6}.k.teal{--c:#0b9a8d;--t1:#dcf8f4}.k.rose{--c:#e03131;--t1:#ffe3e3}.k.purple{--c:#7048e8;--t1:#efe9ff}.k.pink{--c:#d6336c;--t1:#ffe6f0}
+.k.gray{--c:#6c757d;--t1:#eceff3}.k.green{--c:#12805c;--t1:#e3f8ee}.k.blue{--c:#1c7ed6;--t1:#e7f3ff}.k.amber{--c:#e67700;--t1:#fff1d6}.k.teal{--c:#0b9a8d;--t1:#dcf8f4}.k.rose{--c:#e03131;--t1:#ffe3e3}.k.purple{--c:#7048e8;--t1:#efe9ff}.k.pink{--c:#d6336c;--t1:#ffe6f0}
 .k small{display:block;color:var(--m);font-size:11.5px;margin-top:2px}
 .k i.ic{font-style:normal;float:right;font-size:20px}
 .k b{display:block;font-size:26px}.k span{color:var(--m);font-size:12.5px}
@@ -2564,7 +2564,7 @@ function myHistory() {   // ประวัติการจัดของต�
     '<div class="k teal"><i class="ic">⚡</i><b>' + (td.length ? Math.round(on / td.length * 100) + '%' : '-') + '</b><span>ตามเวลา (≤ ' + slaMin + ' นาที)</span></div>' +
     '<div class="k purple"><i class="ic">⏱️</i><b>' + (td.length ? avg : '-') + '</b><span>นาที – เฉลี่ยวันนี้</span></div></div>' +
     '<div style="overflow:auto"><table><tr><th>ปิดเมื่อ</th><th>ออเดอร์</th><th>รายการ</th><th>ใช้เวลา</th></tr>' +
-    (mine.length ? mine.slice(0, 50).map(o => '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + (o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">' + pickMin(o) + ' น.</span>' : '<span class="chip warn">ไม่ได้กดปิด</span>') + shortTxt(o) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>') +
+    (mine.length ? mine.slice(0, 50).map(o => '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + (o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">' + pickMin(o) + ' น.</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ได้กดปิด</span>') + shortTxt(o) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>') +
     '</table></div><div class="muted" style="margin-top:6px">ทั้งหมดที่จัดเสร็จ ' + all.length + ' ออเดอร์ · แสดงล่าสุด 50 รายการ · เห็นเฉพาะของตัวเอง</div></div>';
 }
 const jobState = {};   // id -> 'saving' | 'ok'
@@ -2580,8 +2580,20 @@ function viewMyJobs() {
     const btn = st === 'saving' ? '<button class="p" disabled style="opacity:.75">⏳ กำลังบันทึก…</button>'
       : st === 'ok' ? '<button class="p" disabled style="background:var(--ok)">✅ ปิดงานสำเร็จ</button>'
       : '<button class="p" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>';
-    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + itemsBlock(o) + '<div style="margin-top:10px">' + btn + '</div></div>';
+    return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + itemsBlock(o) + '<div style="margin-top:10px">' + btn + '</div>' + (st ? '' : '<button class="s" style="width:100%;margin-top:8px;color:#c92a2a;border-color:#f3b4b4" onclick="cancelJob(\'' + o.id + '\')">🚫 ยกเลิก Order</button>') + '</div>';
   }).join('') + '</div>';
+}
+function cancelJob(id) {
+  if (jobState[id]) return;
+  if (!confirm('⚠️ ยกเลิกออเดอร์ ' + id + ' ใช่ไหม?\n\nใช้เมื่อออเดอร์นี้ถูกยกเลิก (ลูกค้า/ร้านยกเลิก) ระบบจะบันทึกเป็น "ยกเลิก" ไม่นับเป็นงานที่จัดเสร็จ และยกเลิกกลับไม่ได้')) return;
+  jobState[id] = 'saving'; render();
+  api('cancel', { id }).then(r => {
+    delete jobState[id];
+    if (!r.ok) { alert('ยกเลิกไม่สำเร็จ: ' + (r.error === 'not_found' ? 'ออเดอร์นี้ไม่ได้อยู่ในงานค้างแล้ว' : r.error)); poll(); return; }
+    toast('🚫 ยกเลิกออเดอร์ ' + id + ' แล้ว');
+    const o = S && S.orders.find(x => x.id === id); if (o) { o.status = 'cancelled'; o.done_at = Date.now(); }
+    render(); poll();
+  }).catch(() => { delete jobState[id]; alert('เชื่อมต่อไม่ได้ ยังไม่ได้ยกเลิก – ลองใหม่'); render(); });
 }
 function doneJob(id) {
   if (jobState[id]) return;   // กันกดซ้ำ
@@ -2632,7 +2644,7 @@ function viewMonitor() {
   const hist = S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 80);
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
   h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(ปิดล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
-    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span>';
+    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span>';
     return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
   }).join('') : '<tr><td colspan="6" class="muted">ยังไม่มีออเดอร์ที่ปิด</td></tr>') + '</table></div></div>';
   return h;
@@ -2704,7 +2716,7 @@ function monthTotal() {
 }
 function viewDash() {
   const { days, from, os } = rangeOrders();
-  const done = os.filter(o => o.status === 'done'), closed = os.filter(o => o.status === 'closed'), todo = os.filter(o => o.status === 'todo');
+  const done = os.filter(o => o.status === 'done'), closed = os.filter(o => o.status === 'closed'), cancelled = os.filter(o => o.status === 'cancelled'), todo = os.filter(o => o.status === 'todo');
   const items = done.reduce((s, o) => s + o.items, 0), money = done.reduce((s, o) => s + (o.amount || 0), 0);
   const avg = done.length ? Math.round(done.reduce((s, o) => s + pickMin(o), 0) / done.length) : 0;
   const noAmt = os.filter(o => !o.amount).length;
@@ -2732,6 +2744,7 @@ function viewDash() {
   h += '<div class="kpis">' +
     '<div class="k blue"><i class="ic">📦</i><b>' + os.length + '</b><span>ออเดอร์ทั้งหมด</span><small>รอจัด ' + todo.length + '</small></div>' +
     '<div class="k green"><i class="ic">✅</i><b>' + done.length + '</b><span>จัดเสร็จ (Picker กดปิด)</span></div>' +
+    '<div class="k gray"><i class="ic">🚫</i><b>' + cancelled.length + '</b><span>ออเดอร์ที่ยกเลิก</span><small>กดยกเลิกโดย Picker</small></div>' +
     '<div class="k amber"><i class="ic">🛵</i><b>' + closed.length + '</b><span>ไม่ปิดงาน</span><small>ส่งต่อไรเดอร์โดยไม่กดจัดเสร็จ</small></div>' +
     '<div class="k teal"><i class="ic">⚡</i><b>' + onT.length + '</b><span>ปิดงานตามเวลา</span><small>≤ ' + slaMin + ' นาที' + (done.length ? ' · ' + Math.round(onT.length / done.length * 100) + '%' : '') + '</small></div>' +
     '<div class="k rose"><i class="ic">⏰</i><b>' + ovT.length + '</b><span>ปิดงานเกินเวลา</span><small>&gt; ' + slaMin + ' นาที' + (done.length ? ' · ' + Math.round(ovT.length / done.length * 100) + '%' : '') + '</small></div>' +
@@ -2763,7 +2776,7 @@ function viewDash() {
       for (let d = 1; d <= nDays; d++) { const arr = dh[d] || new Array(24).fill(0); const tot = arr.reduce((x, n) => x + n, 0); run += tot; rowsC.push({ d: d, date: new Date(y, mo, d), tot: tot, hr: arr, run: run, future: d > nowD.getDate() }); }
       const mxC = Math.max.apply(null, rowsC.map(r => Math.max.apply(null, r.hr)).concat([1])), hsum = new Array(24).fill(0);
       rowsC.forEach(r => r.hr.forEach((n, i) => { hsum[i] += n; }));
-      return rowsC.map(r => '<tr><td class="l">' + r.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' + r.hr.slice(h0, h1 + 1).map((n, i) => { if (r.future || (r.d === nowD.getDate() && h0 + i > nowD.getHours())) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + (r.future ? '' : r.tot) + '</b></td></tr>').join('') +
+      return rowsC.map(r => '<tr><td class="l" style="white-space:nowrap' + ([0, 6].indexOf(r.date.getDay()) >= 0 ? ';color:#d6336c;font-weight:600' : '') + '">' + r.date.toLocaleDateString('th-TH', { weekday: 'long' }) + ' ' + r.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' + r.hr.slice(h0, h1 + 1).map((n, i) => { if (r.future || (r.d === nowD.getDate() && h0 + i > nowD.getHours())) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + (r.future ? '' : r.tot) + '</b></td></tr>').join('') +
         '<tr style="font-weight:700"><td class="l"><b>รวมทั้งเดือน</b></td>' + hsum.slice(h0, h1 + 1).map(n => '<td style="background:#e7f3ff;color:#1c7ed6">' + (n || '') + '</td>').join('') + '<td style="background:#d0e8ff;color:#1c7ed6"><b>' + run + '</b></td></tr>';
     })() + '</table></div></div>';
   return h;
