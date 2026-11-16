@@ -2628,6 +2628,10 @@ function rangeOrders() {
   const from = startOfDay() - (days - 1) * 86400000;
   return { days, from, os: S.orders.filter(o => o.created_at >= from) };
 }
+function monthTotal() {
+  const n = new Date(), m0 = new Date(n.getFullYear(), n.getMonth(), 1).getTime(), m1 = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
+  return S.orders.filter(o => o.created_at >= m0 && o.created_at < m1).length;
+}
 function viewDash() {
   const { days, from, os } = rangeOrders();
   const done = os.filter(o => o.status === 'done'), closed = os.filter(o => o.status === 'closed'), todo = os.filter(o => o.status === 'todo');
@@ -2680,14 +2684,17 @@ function viewDash() {
   h += '<div class="card"><h2>ความหนาแน่นของออเดอร์ตามช่วงเวลา – วันนี้ (' + new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ')</h2>' + (mxH > 1 || hc.some(n => n) ? '<div class="muted" style="margin-bottom:8px">วันนี้ออเดอร์เข้าหนาแน่นสุดช่วง <b style="color:var(--red)">' + pad(peak) + ':00–' + pad(peak + 1) + ':00 น.</b> (' + mxH + ' ออเดอร์)</div>' : '<div class="muted" style="margin-bottom:8px">วันนี้ยังไม่มีออเดอร์เข้า</div>') +
     '<div class="hours">' + hc.slice(h0, h1 + 1).map((n, i) => '<div class="' + (h0 + i === peak && n ? 'pk' : '') + '" style="height:' + Math.max(n ? 4 : 1, Math.round(n / mxH * 100)) + '%" title="' + pad(h0 + i) + ':00 – ' + n + ' ออเดอร์"></div>').join('') + '</div>' +
     '<div class="hlab">' + hc.slice(h0, h1 + 1).map((n, i) => '<span>' + (h0 + i) + '</span>').join('') + '</div>' +
-    '<div class="muted" style="margin:14px 0 4px">ออเดอร์สะสมรายวัน – ครบทั้งเดือน ' + new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) + ' (ตัวเลข = จำนวนออเดอร์สะสมของวันนั้นจนถึงสิ้นชั่วโมง · คอลัมน์ขวาสุด = สะสมทั้งเดือนถึงสิ้นวันนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวมวัน</th><th>สะสมเดือน</th></tr>' +
+    '<div class="kpis" style="margin-top:14px"><div class="k blue"><i class="ic">📈</i><b>' + monthTotal() + '</b><span>ออเดอร์สะสมทั้งเดือน ' + new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) + '</span><small>นับตั้งแต่วันที่ 1 ถึงปัจจุบัน</small></div></div>' +
+    '<div class="muted" style="margin:14px 0 4px">ออเดอร์รายวัน – ครบทั้งเดือน ' + new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) + ' (ตัวเลขในช่อง = จำนวนออเดอร์ที่เข้าในชั่วโมงนั้น · รวมวัน = ทั้งวัน · แถวล่างสุด = รวมทั้งเดือนแยกตามชั่วโมง)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวมวัน</th></tr>' +
     (function () {
       const nowD = new Date(), y = nowD.getFullYear(), mo = nowD.getMonth(), nDays = new Date(y, mo + 1, 0).getDate(), m0 = new Date(y, mo, 1).getTime(), m1 = new Date(y, mo + 1, 1).getTime();
       const dh = {}; S.orders.forEach(o => { if (o.created_at >= m0 && o.created_at < m1) { const d = new Date(o.created_at).getDate(); (dh[d] = dh[d] || new Array(24).fill(0))[new Date(o.created_at).getHours()]++; } });
       let run = 0; const rowsC = [];
-      for (let d = 1; d <= nDays; d++) { const arr = dh[d] || new Array(24).fill(0); let c = 0; const tot = arr.reduce((x, n) => x + n, 0); run += tot; rowsC.push({ d: d, date: new Date(y, mo, d), tot: tot, cum: arr.map(n => (c += n)), run: run, future: d > nowD.getDate() }); }
-      const mxC = Math.max.apply(null, rowsC.map(r => r.tot).concat([1]));
-      return rowsC.map(r => '<tr><td class="l">' + r.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' + r.cum.slice(h0, h1 + 1).map((n, i) => { if (r.future || (r.d === nowD.getDate() && h0 + i > nowD.getHours())) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + (r.future ? '' : r.tot) + '</b></td><td style="background:#e7f3ff;color:#1c7ed6"><b>' + (r.future ? '' : r.run) + '</b></td></tr>').join('');
+      for (let d = 1; d <= nDays; d++) { const arr = dh[d] || new Array(24).fill(0); const tot = arr.reduce((x, n) => x + n, 0); run += tot; rowsC.push({ d: d, date: new Date(y, mo, d), tot: tot, hr: arr, run: run, future: d > nowD.getDate() }); }
+      const mxC = Math.max.apply(null, rowsC.map(r => Math.max.apply(null, r.hr)).concat([1])), hsum = new Array(24).fill(0);
+      rowsC.forEach(r => r.hr.forEach((n, i) => { hsum[i] += n; }));
+      return rowsC.map(r => '<tr><td class="l">' + r.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' + r.hr.slice(h0, h1 + 1).map((n, i) => { if (r.future || (r.d === nowD.getDate() && h0 + i > nowD.getHours())) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + (r.future ? '' : r.tot) + '</b></td></tr>').join('') +
+        '<tr style="font-weight:700"><td class="l"><b>รวมทั้งเดือน</b></td>' + hsum.slice(h0, h1 + 1).map(n => '<td style="background:#e7f3ff;color:#1c7ed6">' + (n || '') + '</td>').join('') + '<td style="background:#d0e8ff;color:#1c7ed6"><b>' + run + '</b></td></tr>';
     })() + '</table></div></div>';
   return h;
 }
