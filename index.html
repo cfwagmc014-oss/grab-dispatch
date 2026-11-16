@@ -2725,7 +2725,7 @@ function guestAct(a, id, name, kind) {
 }
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
 let ctrlMsg = '';
-const ERR = { bad_time: 'เวลาไม่ถูกต้อง', bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
+const ERR = { bad_time: 'เวลาไม่ถูกต้อง', bad_date: 'วันที่ไม่ถูกต้อง', not_past: 'ลบได้เฉพาะวันที่ผ่านมาแล้ว (ไม่รวมวันนี้)', bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
 function closeCard() {
   const sy = S.sys || {};
   return '<div class="card" style="border-left-color:#7048e8"><h2>🌙 ปิดระบบอัตโนมัติ</h2><div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง ระบบจะออกจากระบบทุกคน (รวมผู้ช่วยด่วน) และหยุดแจกออเดอร์ ทำซ้ำทุกวัน · วันถัดไปทุกคนล็อกอินเข้างานได้ตามปกติ · ใช้เวลาประเทศไทย</div>' +
@@ -2733,6 +2733,18 @@ function closeCard() {
     (sy.closeTime ? '<button class="s" onclick="saveClose(true)">ยกเลิกการตั้งเวลา</button>' : '') +
     '<span class="chip ' + (sy.closeTime ? 'bl' : '') + '">' + (sy.closeTime ? 'ตั้งไว้: ปิด ' + esc(sy.closeTime) + ' น. ทุกวัน' : 'ยังไม่ได้ตั้งเวลา') + '</span>' +
     (sy.closed ? '<span class="chip warn">ตอนนี้ระบบปิดอยู่</span><button class="gbtn" style="padding:8px 16px;font-size:14px" onclick="sysOpen()">▶ เปิดระบบ</button>' : '') + '</div></div>';
+}
+function purgeCard() {
+  return '<div class="card" style="border-left-color:#e03131"><h2>🗑️ ลบข้อมูลออเดอร์ย้อนหลังตามวันที่</h2><div class="muted" style="margin-bottom:8px">ลบออเดอร์ทั้งหมดที่เข้าในวันที่เลือก (ใช้เมื่อข้อมูลวันนั้นไม่ถูกต้อง/ช่วงทดสอบ) · ลบแล้วกู้คืนไม่ได้ · ลบได้เฉพาะวันที่ผ่านมาแล้ว</div>' +
+    '<div class="row"><input type="date" id="purgeD" max="' + new Date(Date.now() - 86400000).toISOString().slice(0, 10) + '"><button class="p" style="background:#e03131" onclick="purgeDay()">ลบข้อมูลวันนี้ที่เลือก</button></div></div>';
+}
+function purgeDay() {
+  const d = $('purgeD').value;
+  if (!d) { alert('กรุณาเลือกวันที่ที่ต้องการลบ'); return; }
+  const f = new Date(d + 'T00:00:00').getTime(), n = S.orders.filter(o => o.created_at >= f && o.created_at < f + 86400000).length;
+  if (!n) { alert('ไม่พบออเดอร์ของวันที่ ' + d.split('-').reverse().join('/')); return; }
+  if (!confirm('⚠️ ลบข้อมูลออเดอร์ของวันที่ ' + d.split('-').reverse().join('/') + ' ทั้งหมด (' + n + ' ออเดอร์) ใช่ไหม?\n\nลบแล้วกู้คืนไม่ได้ และตัวเลขใน Dashboard ของวันนั้นจะหายไป')) return;
+  api('purgeDay', { date: d }).then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + (ERR[r.error] || r.error)); return; } toast('✅ ลบข้อมูลแล้ว ' + r.deleted + ' ออเดอร์'); poll(); });
 }
 function saveClose(off) {
   const t = off ? '' : $('closeT').value;
@@ -2747,7 +2759,7 @@ function sysOpen() {
 function viewControl() {
   const list = S.pickers.filter(p => !p.guest);
   const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + r + '</option>';
-  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + dispatchCard(S.orders.filter(o => o.status === 'todo'), S.pickers.filter(p => p.role === 'picker')) + guestPanel() + closeCard() +
+  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + dispatchCard(S.orders.filter(o => o.status === 'todo'), S.pickers.filter(p => p.role === 'picker')) + guestPanel() + closeCard() + purgeCard() +
     '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">แก้ชื่อ อีเมล สิทธิ์ หรือสถานะ แล้วกด <b>บันทึก</b> ที่แถวนั้น · picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด · "อยู่ในทีม" ปิดเมื่อหยุดยาว/ลาออก (งานค้างจะถูกแจกให้คนอื่นทันที) · ถ้าเปลี่ยนอีเมล คนนั้นต้องล็อกอินด้วยอีเมลใหม่ (และต้องเป็น Test user ใน Google Cloud)</div>' +
     '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล Google</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + list.map((p, i) =>
       '<tr><td><input id="cN_' + i + '" value="' + esc(p.name) + '" size="14"></td><td><input id="cE_' + i + '" value="' + esc(p.email) + '" size="26"></td>' +
