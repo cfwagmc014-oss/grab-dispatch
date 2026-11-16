@@ -2558,7 +2558,7 @@ function viewMonitor() {
   todo.forEach(o => { if (load[o.picker_email]) { load[o.picker_email].items += o.items; load[o.picker_email].count++; } });
   doneToday.forEach(o => { if (load[o.picker_email]) load[o.picker_email].done++; });
   const mx = Math.max.apply(null, Object.keys(load).map(k => load[k].items).concat([1]));
-  let h = (S.sys && S.sys.closed ? '<div class="duty brk" style="border-color:#7048e8;background:#f1ecff"><div><b>🌙 ระบบปิดแล้ว (ปิดอัตโนมัติ ' + esc(S.sys.closeTime) + ' น.)</b><div class="muted">ไม่มีการแจกออเดอร์</div></div>' + (isAdmin ? '<button class="gbtn" onclick="sysOpen()">▶ เปิดระบบ</button>' : '') + '</div>' : '') + dispatchCard(todo, pickers) + '<div class="kpis">' +
+  let h = (S.sys && S.sys.closed ? '<div class="duty brk" style="border-color:#7048e8;background:#f1ecff"><div><b>🌙 ระบบปิดแล้ว (ปิดอัตโนมัติ ' + esc(S.sys.closeTime) + ' น.)</b><div class="muted">ไม่มีการแจกออเดอร์</div></div>' + (isAdmin ? '<button class="gbtn" onclick="sysOpen()">▶ เปิดระบบ</button>' : '') + '</div>' : '') + '<div class="kpis">' +
     '<div class="k blue"><i class="ic">📦</i><b>' + todo.length + '</b><span>ออเดอร์รอจัด</span></div>' +
     '<div class="k purple"><i class="ic">🛒</i><b>' + todo.reduce((s, o) => s + o.items, 0) + '</b><span>รายการสินค้ารอจัด</span></div>' +
     '<div class="k ' + (waiting ? 'alert' : '') + '"><b>' + waiting + '</b><span>ไรเดอร์รอรับของ</span></div>' +
@@ -2566,7 +2566,6 @@ function viewMonitor() {
     '<div class="k green"><i class="ic">✅</i><b>' + doneToday.length + '</b><span>จัดเสร็จวันนี้</span></div>' +
     '<div class="k teal"><i class="ic">⏱️</i><b>' + avg + '</b><span>นาที – เวลาเฉลี่ยต่อออเดอร์</span></div>' +
     (unassigned ? '<div class="k alert"><b>' + unassigned + '</b><span>ยังไม่มีคนรับ (ไม่มีคนจัดออนไลน์?)</span></div>' : '') + '</div>';
-  if (isAdmin) h += guestPanel();
   const cols = pickers.filter(p => p.active || load[p.key].count);
   const mine = p => todo.filter(o => o.picker_email === p.key).sort((a, b) => (b.rider === 'arrived') - (a.rider === 'arrived') || a.created_at - b.created_at);
   const moveOpts = o => pickers.filter(p => p.active && p.duty && p.online).map(p => '<option value="' + esc(p.key) + '"' + (p.key === o.picker_email ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
@@ -2647,7 +2646,7 @@ function viewDash() {
   // ช่วงเวลาความหนาแน่น
   const hc = new Array(24).fill(0), dayHour = {};
   os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; if (o.created_at >= startOfDay()) hc[hr]++; });   // กราฟแท่งด้านบน = วันปัจจุบันเสมอ
-  let first = 24, last = -1; Object.keys(dayHour).forEach(k => dayHour[k].forEach((n, i) => { if (n) { first = Math.min(first, i); last = Math.max(last, i); } }));
+  let first = 24, last = -1; S.orders.forEach(o => { const hr = new Date(o.created_at).getHours(); first = Math.min(first, hr); last = Math.max(last, hr); });
   const h0 = Math.min(7, first === 24 ? 7 : first), h1 = Math.max(21, last);
   const mxH = Math.max.apply(null, hc.concat([1])), peak = hc.indexOf(mxH);
   const pad = n => (n < 10 ? '0' : '') + n;
@@ -2681,11 +2680,14 @@ function viewDash() {
   h += '<div class="card"><h2>ความหนาแน่นของออเดอร์ตามช่วงเวลา – วันนี้ (' + new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ')</h2>' + (mxH > 1 || hc.some(n => n) ? '<div class="muted" style="margin-bottom:8px">วันนี้ออเดอร์เข้าหนาแน่นสุดช่วง <b style="color:var(--red)">' + pad(peak) + ':00–' + pad(peak + 1) + ':00 น.</b> (' + mxH + ' ออเดอร์)</div>' : '<div class="muted" style="margin-bottom:8px">วันนี้ยังไม่มีออเดอร์เข้า</div>') +
     '<div class="hours">' + hc.slice(h0, h1 + 1).map((n, i) => '<div class="' + (h0 + i === peak && n ? 'pk' : '') + '" style="height:' + Math.max(n ? 4 : 1, Math.round(n / mxH * 100)) + '%" title="' + pad(h0 + i) + ':00 – ' + n + ' ออเดอร์"></div>').join('') + '</div>' +
     '<div class="hlab">' + hc.slice(h0, h1 + 1).map((n, i) => '<span>' + (h0 + i) + '</span>').join('') + '</div>' +
-    '<div class="muted" style="margin:14px 0 4px">แยกรายวัน – ออเดอร์สะสม (ตัวเลข = จำนวนออเดอร์สะสมตั้งแต่เปิดร้านจนถึงสิ้นชั่วโมงนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวม</th></tr>' +
+    '<div class="muted" style="margin:14px 0 4px">ออเดอร์สะสมรายวัน – ครบทั้งเดือน ' + new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) + ' (ตัวเลข = จำนวนออเดอร์สะสมของวันนั้นจนถึงสิ้นชั่วโมง · คอลัมน์ขวาสุด = สะสมทั้งเดือนถึงสิ้นวันนั้น)</div><div style="overflow:auto"><table class="heat"><tr><th></th>' + hc.slice(h0, h1 + 1).map((n, i) => '<th>' + (h0 + i) + '</th>').join('') + '<th>รวมวัน</th><th>สะสมเดือน</th></tr>' +
     (function () {
-      const rowsC = Array.from({ length: days }, (_, i) => { const d = new Date(from + (days - 1 - i) * 86400000), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), arr = dayHour[dk] || new Array(24).fill(0); let c = 0; return { d: d, tot: arr.reduce((x, n) => x + n, 0), cum: arr.map(n => (c += n)) }; });
+      const nowD = new Date(), y = nowD.getFullYear(), mo = nowD.getMonth(), nDays = new Date(y, mo + 1, 0).getDate(), m0 = new Date(y, mo, 1).getTime(), m1 = new Date(y, mo + 1, 1).getTime();
+      const dh = {}; S.orders.forEach(o => { if (o.created_at >= m0 && o.created_at < m1) { const d = new Date(o.created_at).getDate(); (dh[d] = dh[d] || new Array(24).fill(0))[new Date(o.created_at).getHours()]++; } });
+      let run = 0; const rowsC = [];
+      for (let d = 1; d <= nDays; d++) { const arr = dh[d] || new Array(24).fill(0); let c = 0; const tot = arr.reduce((x, n) => x + n, 0); run += tot; rowsC.push({ d: d, date: new Date(y, mo, d), tot: tot, cum: arr.map(n => (c += n)), run: run, future: d > nowD.getDate() }); }
       const mxC = Math.max.apply(null, rowsC.map(r => r.tot).concat([1]));
-      return rowsC.map(r => '<tr><td class="l">' + r.d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) + '</td>' + r.cum.slice(h0, h1 + 1).map((n, i) => { const isToday = r.d.toDateString() === new Date().toDateString(); if (isToday && h0 + i > new Date().getHours()) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + r.tot + '</b></td></tr>').join('');
+      return rowsC.map(r => '<tr><td class="l">' + r.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' + r.cum.slice(h0, h1 + 1).map((n, i) => { if (r.future || (r.d === nowD.getDate() && h0 + i > nowD.getHours())) return '<td style="background:#f4f5f7"></td>'; return '<td style="' + (n ? 'background:rgba(76,110,245,' + (0.1 + 0.8 * n / mxC).toFixed(2) + ');color:' + (n / mxC > 0.5 ? '#fff' : '#1d2230') : 'background:#f4f5f7') + '">' + (n || '') + '</td>'; }).join('') + '<td><b>' + (r.future ? '' : r.tot) + '</b></td><td style="background:#e7f3ff;color:#1c7ed6"><b>' + (r.future ? '' : r.run) + '</b></td></tr>').join('');
     })() + '</table></div></div>';
   return h;
 }
@@ -2745,7 +2747,7 @@ function sysOpen() {
 function viewControl() {
   const list = S.pickers.filter(p => !p.guest);
   const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + r + '</option>';
-  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + closeCard() +
+  return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + dispatchCard(S.orders.filter(o => o.status === 'todo'), S.pickers.filter(p => p.role === 'picker')) + guestPanel() + closeCard() +
     '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">แก้ชื่อ อีเมล สิทธิ์ หรือสถานะ แล้วกด <b>บันทึก</b> ที่แถวนั้น · picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด · "อยู่ในทีม" ปิดเมื่อหยุดยาว/ลาออก (งานค้างจะถูกแจกให้คนอื่นทันที) · ถ้าเปลี่ยนอีเมล คนนั้นต้องล็อกอินด้วยอีเมลใหม่ (และต้องเป็น Test user ใน Google Cloud)</div>' +
     '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล Google</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + list.map((p, i) =>
       '<tr><td><input id="cN_' + i + '" value="' + esc(p.name) + '" size="14"></td><td><input id="cE_' + i + '" value="' + esc(p.email) + '" size="26"></td>' +
