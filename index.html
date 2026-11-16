@@ -2640,7 +2640,7 @@ function viewMonitor() {
     const jobs = mine(p);
     return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3><div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
       (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
-        (isAdmin ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
+        (isAdmin || S.me.role === 'viewer' ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const hist = S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 80);
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
