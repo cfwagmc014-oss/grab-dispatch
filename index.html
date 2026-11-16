@@ -2741,16 +2741,28 @@ function viewDash() {
     '<span style="flex:1"></span><span class="muted">ปิดตามเวลา = ภายใน</span><select onchange="setSla(this.value)">' + [5, 10, 15, 20, 30, 45, 60].map(m => '<option value="' + m + '"' + (m === slaMin ? ' selected' : '') + '>' + m + ' นาที</option>').join('') + '</select>' +
     '<button onclick="exportCsv()">⬇ CSV</button></div>';
   h += '<div class="muted" style="margin:-4px 0 10px">' + (range === 'today' ? 'กำลังดูข้อมูลของวันนี้ (' + new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : 'กำลังดูภาพรวมย้อนหลัง ' + days + ' วัน') + '</div>';
-  h += '<div class="kpis">' +
+  const cancelMoney = cancelled.reduce((x, o) => x + (o.amount || 0), 0);
+  const maxMin = done.length ? Math.max.apply(null, done.map(pickMin)) : 0;
+  const shortOrders = os.filter(o => o.picks === 'S'), shortItems = shortOrders.reduce((x, o) => x + itemsOf(o).length, 0);
+  const avgItems = done.length ? (items / done.length).toFixed(1) : '0';
+  const pc = (n, d) => d ? ' · ' + Math.round(n / d * 100) + '%' : '';
+  h += '<div class="sec">⏱️ เรื่องเวลา</div><div class="kpis">' +
+    '<div class="k teal"><i class="ic">⚡</i><b>' + onT.length + '</b><span>ปิดงานตามเวลา</span><small>≤ ' + slaMin + ' นาที' + pc(onT.length, done.length) + '</small></div>' +
+    '<div class="k rose"><i class="ic">⏰</i><b>' + ovT.length + '</b><span>ปิดงานเกินเวลา</span><small>&gt; ' + slaMin + ' นาที' + pc(ovT.length, done.length) + '</small></div>' +
+    '<div class="k blue"><i class="ic">⏱️</i><b>' + avg + '</b><span>นาที – เวลาหยิบเฉลี่ย</span></div>' +
+    '<div class="k amber"><i class="ic">🐢</i><b>' + maxMin + '</b><span>นาที – นานที่สุด</span></div></div>' +
+    '<div class="sec">🛒 เรื่องสินค้า</div><div class="kpis">' +
+    '<div class="k purple"><i class="ic">🛒</i><b>' + items.toLocaleString('th-TH') + '</b><span>สินค้าที่หยิบ (รายการ)</span></div>' +
+    '<div class="k blue"><i class="ic">📋</i><b>' + avgItems + '</b><span>รายการเฉลี่ยต่อออเดอร์</span></div>' +
+    '<div class="k rose"><i class="ic">❗</i><b>' + shortItems + '</b><span>สินค้าที่ขาด (รายการ)</span><small>จากปุ่ม "ขาด" ของ Picker</small></div>' +
+    '<div class="k amber"><i class="ic">📉</i><b>' + shortOrders.length + '</b><span>ออเดอร์ที่มีของขาด</span></div></div>' +
+    '<div class="sec">📌 เรื่องอื่น ๆ</div><div class="kpis">' +
     '<div class="k blue"><i class="ic">📦</i><b>' + os.length + '</b><span>ออเดอร์ทั้งหมด</span><small>รอจัด ' + todo.length + '</small></div>' +
     '<div class="k green"><i class="ic">✅</i><b>' + done.length + '</b><span>จัดเสร็จ (Picker กดปิด)</span></div>' +
     '<div class="k gray"><i class="ic">🚫</i><b>' + cancelled.length + '</b><span>ออเดอร์ที่ยกเลิก</span><small>กดยกเลิกโดย Picker</small></div>' +
     '<div class="k amber"><i class="ic">🛵</i><b>' + closed.length + '</b><span>ไม่ปิดงาน</span><small>ส่งต่อไรเดอร์โดยไม่กดจัดเสร็จ</small></div>' +
-    '<div class="k teal"><i class="ic">⚡</i><b>' + onT.length + '</b><span>ปิดงานตามเวลา</span><small>≤ ' + slaMin + ' นาที' + (done.length ? ' · ' + Math.round(onT.length / done.length * 100) + '%' : '') + '</small></div>' +
-    '<div class="k rose"><i class="ic">⏰</i><b>' + ovT.length + '</b><span>ปิดงานเกินเวลา</span><small>&gt; ' + slaMin + ' นาที' + (done.length ? ' · ' + Math.round(ovT.length / done.length * 100) + '%' : '') + '</small></div>' +
-    '<div class="k purple"><i class="ic">🛒</i><b>' + items.toLocaleString('th-TH') + '</b><span>สินค้าที่หยิบ (รายการ)</span></div>' +
     '<div class="k pink"><i class="ic">💰</i><b>' + fmtB(money) + '</b><span>ยอดเงินออเดอร์ที่จัดเสร็จ</span></div>' +
-    '<div class="k teal"><i class="ic">⏱️</i><b>' + avg + '</b><span>นาที – เวลาหยิบเฉลี่ย</span></div></div>';
+    '<div class="k gray"><i class="ic">💸</i><b>' + fmtB(cancelMoney) + '</b><span>ยอดเงินจากออเดอร์ที่ยกเลิก</span></div></div>';
   if (noAmt) h += '<div class="muted" style="margin:-6px 0 12px">* ' + noAmt + ' ออเดอร์ยังไม่มียอดเงิน (ระบบเริ่มเก็บยอดเงินตั้งแต่ตัวอ่านเวอร์ชัน 1.5)</div>';
   // ตารางสรุปรายคน (อยู่บนสุดเพื่อดูภาพรวมทันที)
   h += '<div class="card" style="border-left-color:#12b886"><h2>📋 สรุปรายคน (Picker) ' + (range === 'today' ? 'วันนี้' : days + ' วัน') + '</h2><div style="overflow:auto"><table><tr><th>Picker</th><th>จัดเสร็จ</th><th>ตามเวลา</th><th>เกินเวลา</th><th>% ตามเวลา</th><th>ไม่ปิดงาน</th><th>สินค้า (รายการ)</th><th>ยอดเงิน</th><th>เวลาเฉลี่ย</th></tr>' +
