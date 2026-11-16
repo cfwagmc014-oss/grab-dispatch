@@ -48,7 +48,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .duty{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:12px;padding:12px 16px;margin-bottom:12px;border:2px solid var(--ok);background:#eaf7f1}
 .duty.brk{border-color:var(--warn);background:#fff6e6}
 .duty b{font-size:16px}
-.boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-bottom:14px;align-items:start}
+.boards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);gap:10px;margin-bottom:14px;align-items:start;overflow-x:auto;padding-bottom:6px}
 .col{background:#fff;border:1px solid var(--b);border-radius:12px;padding:10px}
 .col.off{opacity:.65}
 .col h3{margin:0 0 4px;font-size:15px;display:flex;justify-content:space-between;gap:6px;align-items:center}
@@ -78,6 +78,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .items{margin-top:8px;font-size:13.5px;border-top:1px dashed var(--b);padding-top:4px;text-align:left}
 .it{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #f0f1f3;align-items:flex-start}.it:last-child{border-bottom:0}
 .it .q{min-width:38px;font-weight:700;color:var(--red);font-size:15px}.it small{color:var(--m);display:block}
+.it.ok{background:#eaf9f1}.it.no{background:#fff0f0}.pk{display:flex;gap:4px;margin-left:auto;flex-shrink:0}.pk button{padding:3px 9px;font-size:12px;border-radius:14px;border:1px solid #cfd4dc;background:#fff;color:#495057;cursor:pointer}.pk button.y.on{background:#12b886;border-color:#12b886;color:#fff}.pk button.n.on{background:#e03131;border-color:#e03131;color:#fff}.pkc{font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px}
 .it .nw{background:#e3f4ec;color:var(--ok);border-radius:8px;padding:0 6px;font-size:11.5px;font-weight:600;margin-left:4px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1d2230;color:#fff;padding:11px 18px;border-radius:24px;font-size:15px;z-index:9999;box-shadow:0 4px 16px #0005;max-width:90vw;text-align:center}.toast.ok{background:#12805c}.toast.bad{background:#D71920}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -2563,7 +2564,7 @@ function myHistory() {   // ประวัติการจัดของต�
     '<div class="k teal"><i class="ic">⚡</i><b>' + (td.length ? Math.round(on / td.length * 100) + '%' : '-') + '</b><span>ตามเวลา (≤ ' + slaMin + ' นาที)</span></div>' +
     '<div class="k purple"><i class="ic">⏱️</i><b>' + (td.length ? avg : '-') + '</b><span>นาที – เฉลี่ยวันนี้</span></div></div>' +
     '<div style="overflow:auto"><table><tr><th>ปิดเมื่อ</th><th>ออเดอร์</th><th>รายการ</th><th>ใช้เวลา</th></tr>' +
-    (mine.length ? mine.slice(0, 50).map(o => '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + (o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">' + pickMin(o) + ' น.</span>' : '<span class="chip warn">ไม่ได้กดปิด</span>') + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>') +
+    (mine.length ? mine.slice(0, 50).map(o => '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + (o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">' + pickMin(o) + ' น.</span>' : '<span class="chip warn">ไม่ได้กดปิด</span>') + shortTxt(o) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>') +
     '</table></div><div class="muted" style="margin-top:6px">ทั้งหมดที่จัดเสร็จ ' + all.length + ' ออเดอร์ · แสดงล่าสุด 50 รายการ · เห็นเฉพาะของตัวเอง</div></div>';
 }
 const jobState = {};   // id -> 'saving' | 'ok'
@@ -2584,7 +2585,8 @@ function viewMyJobs() {
 }
 function doneJob(id) {
   if (jobState[id]) return;   // กันกดซ้ำ
-  if (!confirm('ปิดงาน ' + id + ' (จัดเสร็จแล้ว) ใช่ไหม?')) return;
+  const oo = S.orders.find(x => x.id === id), n = oo ? itemsOf(oo).length : 0, ps = oo ? picksOf(oo) : [], no = ps.filter(x => x === '0').length, un = n - ps.filter(x => x === '1' || x === '0').length;
+  if (!confirm('ปิดงาน ' + id + ' (จัดเสร็จแล้ว) ใช่ไหม?' + (no ? '\n\n⚠️ มีสินค้าขาด ' + no + ' รายการ (จะบันทึกไว้ในประวัติ)' : '') + (n && un > 0 ? '\n⚠️ ยังไม่ได้ติ๊กครบ/ขาด อีก ' + un + ' รายการ' : ''))) return;
   jobState[id] = 'saving'; render();
   api('done', { id }).then(r => {
     if (!r.ok) { delete jobState[id]; alert('ปิดงานไม่สำเร็จ: ' + r.error + ' – กดใหม่อีกครั้ง'); render(); return; }
@@ -2631,21 +2633,39 @@ function viewMonitor() {
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
   h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(ปิดล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
     const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span>';
-    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + '</td></tr>';
+    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
   }).join('') : '<tr><td colspan="6" class="muted">ยังไม่มีออเดอร์ที่ปิด</td></tr>') + '</table></div></div>';
   return h;
 }
 
 const openItems = {};
+function shortTxt(o) {   // รายการที่ติ๊ก "ขาด" ของออเดอร์ที่ปิดแล้ว
+  if (o.picks !== 'S') return '';
+  const l = itemsOf(o); return l.length ? '<div style="color:#c92a2a;font-size:12px;margin-top:2px">ขาด: ' + l.map(x => esc(x[0]) + ' ×' + esc(x[1])).join(', ') + '</div>' : '';
+}
 function itemsOf(o) { try { return JSON.parse(o.detail || '[]'); } catch (e) { return []; } }
 function toggleItems(id) { openItems[id] = !openItems[id]; render(); }
+function picksOf(o) { try { const p = JSON.parse(o.picks || '[]'); return Array.isArray(p) ? p : []; } catch (e) { return []; } }
+function pickChip(o) {   // สรุปการติ๊ก ครบ/ขาด ของออเดอร์ที่ยังค้าง
+  const n = itemsOf(o).length, st = picksOf(o); if (!n) return '';
+  const ok = st.filter(x => x === '1').length, no = st.filter(x => x === '0').length;
+  return '<span class="pkc" style="background:' + (no ? '#ffe0e0;color:#c92a2a' : ok === n ? '#d3f9e5;color:#087f5b' : '#eef1f6;color:#495057') + '">ติ๊กแล้ว ' + (ok + no) + '/' + n + (no ? ' · ขาด ' + no : '') + '</span>';
+}
+function markItem(id, idx, state) {
+  const o = S.orders.find(x => x.id === id); if (!o || o.status !== 'todo') return;
+  const st = picksOf(o); while (st.length <= idx) st.push('');
+  state = st[idx] === state ? '' : state; st[idx] = state; o.picks = JSON.stringify(st); render();   // แสดงผลทันที แล้วค่อยบันทึก
+  api('pick', { id: id, idx: idx, state: state }).then(r => { if (!r.ok) { toast('บันทึกการติ๊กไม่สำเร็จ ลองใหม่', true); poll(); } }).catch(() => { toast('เชื่อมต่อไม่ได้ ยังไม่ได้บันทึกการติ๊ก', true); poll(); });
+}
 function itemsBlock(o) {
-  const open = openItems[o.id], list = itemsOf(o);
-  const head = '<button class="s" style="width:100%;margin-top:6px;padding:8px;font-size:14px" onclick="toggleItems(\'' + o.id + '\')">🧾 ' + (open ? 'ซ่อน' : 'ดู') + 'รายการสินค้า' + (list.length ? ' (' + list.length + ')' : '') + '</button>';
+  const open = openItems[o.id], list = itemsOf(o), st = picksOf(o), mine = o.status === 'todo' && o.picker_email === S.me.email;
+  const head = '<button class="s" style="width:100%;margin-top:6px;padding:8px;font-size:14px" onclick="toggleItems(\'' + o.id + '\')">🧾 ' + (open ? 'ซ่อน' : 'ดู') + 'รายการสินค้า' + (list.length ? ' (' + list.length + ')' : '') + '</button>' + (list.length ? '<div style="margin-top:4px">' + pickChip(o) + '</div>' : '');
   if (!open) return head;
-  if (!list.length) return head + '<div class="muted" style="margin-top:6px">ยังไม่ได้รับรายการสินค้าจากตัวอ่าน Grab – ถ้ารอเกิน 1 นาที ให้เช็กว่าเครื่องที่ร้านเปิดหน้า "กำลังเตรียม" ค้างไว้ และตัวอ่านเป็นเวอร์ชัน 1.7</div>';
-  return head + '<div class="items">' + list.map(x => '<div class="it"><span class="q">' + esc(x[1]) + ' ×</span><span><b>' + esc(x[0]) + '</b>' + (x[4] ? '<span class="nw">เพิ่มใหม่</span>' : '') +
-    '<small>' + (x[3] ? 'รหัส ' + esc(x[3]) + ' · ' : '') + 'ราคา ฿' + esc(x[2]) + ' · รวม ฿' + esc(Math.round(x[1] * x[2] * 100) / 100) + '</small>' + (x[5] ? '<small>รายละเอียด: ' + esc(x[5]) + '</small>' : '') + '</span></div>').join('') + '</div>';
+  if (!list.length) return head + '<div class="muted" style="margin-top:6px">ยังไม่ได้รับรายการสินค้าจากตัวอ่าน Grab – ถ้ารอเกิน 1 นาที ให้เช็กว่าเครื่องที่ร้านเปิดหน้า "กำลังเตรียม" ค้างไว้ และตัวอ่านเป็นเวอร์ชัน 1.9</div>';
+  return head + '<div class="items">' + list.map((x, i) => '<div class="it' + (st[i] === '1' ? ' ok' : st[i] === '0' ? ' no' : '') + '"><span class="q">' + esc(x[1]) + ' ×</span><span><b>' + esc(x[0]) + '</b>' + (x[4] ? '<span class="nw">เพิ่มใหม่</span>' : '') +
+    '<small>' + (x[3] ? 'รหัส ' + esc(x[3]) + ' · ' : '') + 'ราคา ฿' + esc(x[2]) + ' · รวม ฿' + esc(Math.round(x[1] * x[2] * 100) / 100) + '</small>' + (x[5] ? '<small>รายละเอียด: ' + esc(x[5]) + '</small>' : '') + '</span>' +
+    (mine ? '<span class="pk"><button class="y' + (st[i] === '1' ? ' on' : '') + '" onclick="markItem(\'' + o.id + '\',' + i + ',\'1\')">ครบ</button><button class="n' + (st[i] === '0' ? ' on' : '') + '" onclick="markItem(\'' + o.id + '\',' + i + ',\'0\')">ขาด</button></span>'
+      : st[i] ? '<span class="pk"><span class="chip ' + (st[i] === '1' ? 'ok' : 'red') + '">' + (st[i] === '1' ? 'ครบ' : 'ขาด') + '</span></span>' : '') + '</div>').join('') + '</div>';
 }
 const fmtB = n => n > 0 ? '฿' + Math.round(n).toLocaleString('th-TH') : '-';
 const pickMin = o => Math.max(0, Math.round((o.done_at - (o.assigned_at || o.created_at)) / 60000));
@@ -2782,7 +2802,7 @@ function guestAct(a, id, name, kind) {
 }
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
 let ctrlMsg = '';
-const ERR = { bad_time: 'เวลาไม่ถูกต้อง', bad_date: 'วันที่ไม่ถูกต้อง', not_past: 'ลบได้เฉพาะวันที่ผ่านมาแล้ว (ไม่รวมวันนี้)', bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
+const ERR = { bad_pick: 'ข้อมูลไม่ถูกต้อง', bad_time: 'เวลาไม่ถูกต้อง', bad_date: 'วันที่ไม่ถูกต้อง', not_past: 'ลบได้เฉพาะวันที่ผ่านมาแล้ว (ไม่รวมวันนี้)', bad_email: 'อีเมลไม่ถูกต้อง', email_exists: 'อีเมลนี้มีอยู่ในระบบแล้ว', cannot_demote_self: 'ปรับสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้', cannot_change_self_email: 'เปลี่ยนอีเมลของตัวเองไม่ได้', cannot_delete_self: 'ลบตัวเองไม่ได้' };
 function closeCard() {
   const sy = S.sys || {};
   return '<div class="card" style="border-left-color:#7048e8"><h2>🌙 ปิดระบบอัตโนมัติ</h2><div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง ระบบจะออกจากระบบทุกคน (รวมผู้ช่วยด่วน) และหยุดแจกออเดอร์ ทำซ้ำทุกวัน · วันถัดไปทุกคนล็อกอินเข้างานได้ตามปกติ · ใช้เวลาประเทศไทย</div>' +
