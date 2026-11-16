@@ -2473,6 +2473,7 @@ function render() {
   if (me.guest && me.gstatus === 'pending') { $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 8px;color:var(--red)">รอผู้ดูแลอนุมัติ…</h2><div class="muted" style="margin-bottom:14px">สวัสดี ' + esc(me.name) + ' · เมื่อผู้ดูแลกดอนุมัติ งานจะเด้งขึ้นหน้านี้เอง</div><button class="s" onclick="leaveGuest()">ยกเลิก</button></div>'; return; }
   const tabs = [['orders', 'Orders Task']];
   if (!me.guest) tabs.push(['dash', 'Dashboard']);
+  if (!me.guest) tabs.push(['cancel', '🚫 ยกเลิก']);
   if (isAdmin) tabs.push(['control', 'Control']);
   if (!tabs.some(t => t[0] === tab)) tab = tabs[0][0];
   const age = S.reader.ts ? now - S.reader.ts : Infinity;
@@ -2483,7 +2484,7 @@ function render() {
     '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</nav><main>';
   if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
-  h += tab === 'orders' ? viewOrders() : tab === 'dash' ? viewDash() : viewControl();
+  h += tab === 'orders' ? viewOrders() : tab === 'dash' ? viewDash() : tab === 'cancel' ? viewCancel() : viewControl();
   $('app').innerHTML = h + '</main>';
   Object.keys(draft).forEach(k => { const el = $(k); if (el) { if (el.type === 'checkbox') el.checked = !!draft[k]; else el.value = draft[k]; } });   // คืนค่าที่พิมพ์ค้างไว้
 }
@@ -2710,6 +2711,45 @@ function rangeOrders() {
   const from = startOfDay() - (days - 1) * 86400000;
   return { days, from, os: S.orders.filter(o => o.created_at >= from) };
 }
+const lossAmt = o => { if (o.amount > 0) return o.amount; return itemsOf(o).reduce((t, x) => t + (Number(x[1]) || 0) * (Number(x[2]) || 0), 0); };   // ยอดสูญเสียของออเดอร์ยกเลิก: ใช้ยอดรวม ถ้าไม่มีให้ประมาณจากรายการสินค้า
+const qtyF = n => { n = Number(n) || 0; return (Math.round(n * 100) / 100).toLocaleString('th-TH'); };
+function cancelList() {   // ออเดอร์ที่ยกเลิกในช่วงที่เลือก (นับตามเวลาที่กดยกเลิก) ใหม่สุดก่อน
+  const days = range === 'today' ? 1 : Number(range), from = startOfDay() - (days - 1) * 86400000;
+  return { days, os: S.orders.filter(o => o.status === 'cancelled' && (o.done_at || o.created_at) >= from).sort((a, b) => (b.done_at || 0) - (a.done_at || 0)) };
+}
+function viewCancel() {
+  const { days, os } = cancelList();
+  const agg = {}; let noDet = 0, pieces = 0;
+  os.forEach(o => { const its = itemsOf(o); if (!its.length) { noDet++; return; }
+    its.forEach(x => { const k = x[3] || x[0]; const a = agg[k] || (agg[k] = { n: x[0], u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; pieces += Number(x[1]) || 0; }); });
+  const rows = Object.keys(agg).map(k => agg[k]).sort((a, b) => b.q - a.q);
+  const money = os.reduce((s, o) => s + lossAmt(o), 0), unk = os.filter(o => !(lossAmt(o) > 0)).length;
+  const t = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+  let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 วันนี้</button>' +
+    [['7', '7 วัน'], ['14', '14 วัน'], ['30', '30 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
+    '<span style="flex:1"></span><button onclick="exportCancelCsv()">⬇ CSV</button></div>';
+  h += '<div class="muted" style="margin:-4px 0 10px">ออเดอร์ที่ถูกยกเลิก' + (range === 'today' ? 'วันนี้' : 'ย้อนหลัง ' + days + ' วัน') + ' (นับตามเวลาที่กดยกเลิก)</div>';
+  h += '<div class="kpis"><div class="k rose"><i class="ic">🚫</i><b>' + os.length + '</b><span>ออเดอร์ที่ยกเลิก</span></div>' +
+    '<div class="k purple"><i class="ic">🛒</i><b>' + rows.length + '</b><span>สินค้าที่ถูกยกเลิก (SKU)</span></div>' +
+    '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(pieces) + '</b><span>จำนวนรวมที่ถูกยกเลิก</span></div>' +
+    '<div class="k blue"><i class="ic">💰</i><b>' + (money > 0 ? '฿' + Math.round(money).toLocaleString('th-TH') : '-') + '</b><span>มูลค่าที่ยกเลิก (ยอดสูญเสีย)</span>' + (unk ? '<small>ไม่ทราบยอด ' + unk + ' ออเดอร์</small>' : '') + '</div></div>';
+  if (noDet) h += '<div class="muted" style="margin-bottom:10px">* ' + noDet + ' ออเดอร์ไม่มีรายการสินค้า (ยกเลิกก่อนอัปเดตระบบ หรือตัวอ่านยังไม่ได้อ่านรายละเอียด)</div>';
+  h += '<div class="card" style="border-left-color:#e03131"><h2>🧾 สรุปสินค้าที่ถูกยกเลิก (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
+    (rows.length ? rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีข้อมูลสินค้าที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
+  h += '<div class="card" style="border-left-color:#e03131"><h2>📋 รายออเดอร์ที่ยกเลิก <span class="muted" style="font-weight:400">(ล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>ยกเลิกเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>ยอดเงิน</th><th>รายการสินค้า × จำนวน</th></tr>' +
+    (os.length ? os.map(o => { const its = itemsOf(o);
+      return '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(o.id) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + fmtB(lossAmt(o)) + (!(o.amount > 0) && lossAmt(o) > 0 ? ' <small class="muted">(ประมาณ)</small>' : '') + '</td><td>' +
+        (its.length ? its.map(x => esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') : '<span class="muted">' + o.items + ' รายการ (ไม่มีรายละเอียด)</span>') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">ยังไม่มีออเดอร์ที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
+  return h;
+}
+function exportCancelCsv() {
+  if (!confirm('ดาวน์โหลด CSV รายการสินค้าที่ยกเลิกของช่วงเวลาที่เลือก?')) return;
+  const { os } = cancelList(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', t = ms => ms ? new Date(ms).toLocaleString('sv-SE') : '';
+  const lines = [['order', 'cancelled_at', 'picker', 'amount', 'item', 'code', 'qty', 'unit'].map(q).join(',')];
+  os.forEach(o => { const its = itemsOf(o); if (!its.length) lines.push([o.id, t(o.done_at), o.picker_name, o.amount || 0, '', '', '', ''].map(q).join(',')); else its.forEach(x => lines.push([o.id, t(o.done_at), o.picker_name, o.amount || 0, x[0], x[3], x[1], x[5]].map(q).join(','))); });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'grab-cancelled-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove(); toast('✅ ดาวน์โหลดไฟล์ CSV แล้ว');
+}
 function monthTotal() {
   const n = new Date(), m0 = new Date(n.getFullYear(), n.getMonth(), 1).getTime(), m1 = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
   return S.orders.filter(o => o.created_at >= m0 && o.created_at < m1).length;
@@ -2741,7 +2781,7 @@ function viewDash() {
     '<span style="flex:1"></span><span class="muted">ปิดตามเวลา = ภายใน</span><select onchange="setSla(this.value)">' + [5, 10, 15, 20, 30, 45, 60].map(m => '<option value="' + m + '"' + (m === slaMin ? ' selected' : '') + '>' + m + ' นาที</option>').join('') + '</select>' +
     '<button onclick="exportCsv()">⬇ CSV</button></div>';
   h += '<div class="muted" style="margin:-4px 0 10px">' + (range === 'today' ? 'กำลังดูข้อมูลของวันนี้ (' + new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : 'กำลังดูภาพรวมย้อนหลัง ' + days + ' วัน') + '</div>';
-  const cancelMoney = cancelled.reduce((x, o) => x + (o.amount || 0), 0);
+  const cancelMoney = cancelled.reduce((x, o) => x + lossAmt(o), 0), cancelUnk = cancelled.filter(o => !(lossAmt(o) > 0)).length;
   const maxMin = done.length ? Math.max.apply(null, done.map(pickMin)) : 0;
   const shortOrders = os.filter(o => o.picks === 'S'), shortItems = shortOrders.reduce((x, o) => x + itemsOf(o).length, 0);
   const avgItems = done.length ? (items / done.length).toFixed(1) : '0';
@@ -2762,7 +2802,7 @@ function viewDash() {
     '<div class="k gray"><i class="ic">🚫</i><b>' + cancelled.length + '</b><span>ออเดอร์ที่ยกเลิก</span><small>กดยกเลิกโดย Picker</small></div>' +
     '<div class="k amber"><i class="ic">🛵</i><b>' + closed.length + '</b><span>ไม่ปิดงาน</span><small>ส่งต่อไรเดอร์โดยไม่กดจัดเสร็จ</small></div>' +
     '<div class="k pink"><i class="ic">💰</i><b>' + fmtB(money) + '</b><span>ยอดเงินออเดอร์ที่จัดเสร็จ</span></div>' +
-    '<div class="k gray"><i class="ic">💸</i><b>' + fmtB(cancelMoney) + '</b><span>ยอดเงินจากออเดอร์ที่ยกเลิก</span></div></div>';
+    '<div class="k gray"><i class="ic">💸</i><b>' + fmtB(cancelMoney) + '</b><span>ยอดเงินจากออเดอร์ที่ยกเลิก</span>' + (cancelUnk ? '<small>ไม่ทราบยอด ' + cancelUnk + ' ออเดอร์</small>' : '') + '</div></div>';
   if (noAmt) h += '<div class="muted" style="margin:-6px 0 12px">* ' + noAmt + ' ออเดอร์ยังไม่มียอดเงิน (ระบบเริ่มเก็บยอดเงินตั้งแต่ตัวอ่านเวอร์ชัน 1.5)</div>';
   // ตารางสรุปรายคน (อยู่บนสุดเพื่อดูภาพรวมทันที)
   h += '<div class="card" style="border-left-color:#12b886"><h2>📋 สรุปรายคน (Picker) ' + (range === 'today' ? 'วันนี้' : days + ' วัน') + '</h2><div style="overflow:auto"><table><tr><th>Picker</th><th>จัดเสร็จ</th><th>ตามเวลา</th><th>เกินเวลา</th><th>% ตามเวลา</th><th>ไม่ปิดงาน</th><th>สินค้า (รายการ)</th><th>ยอดเงิน</th><th>เวลาเฉลี่ย</th></tr>' +
