@@ -2479,7 +2479,7 @@ function render() {
   const online = age < 120000;
   const readerTxt = S.reader.ts ? (online ? 'ตัวอ่าน Grab ออนไลน์ (' + Math.floor(age / 1000) + ' วิที่แล้ว)' : 'ตัวอ่าน Grab หยุดทำงาน ' + mins(age) + ' นาที') : 'ยังไม่เคยรับข้อมูลจาก Grab';
   let h = '<header><h1>🛵 GO EXPRESS ระยอง – Grab Dispatch</h1><div class="hr"><span><span class="dot ' + (online ? 'on' : 'off') + '"></span>' + readerTxt + '</span>' +
-    '<span>' + esc(me.name) + ' · ' + (me.guest ? 'ผู้ช่วยด่วน' : esc(me.role)) + '</span>' + (me.guest ? '<button class="s" onclick="leaveGuest()">ยกเลิก / ออก</button>' : '<button class="s" onclick="logout()">ออกจากระบบ</button>') + '</div></header>' +
+    '<span>' + esc(me.name) + ' · ' + (me.guest ? 'ผู้ช่วยด่วน' : me.role === 'viewer' ? 'viewer (ดูภาพรวม)' : esc(me.role)) + '</span>' + (me.guest ? '<button class="s" onclick="leaveGuest()">ยกเลิก / ออก</button>' : '<button class="s" onclick="logout()">ออกจากระบบ</button>') + '</div></header>' +
     '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</nav><main>';
   if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
@@ -2848,7 +2848,7 @@ function sysOpen() {
 }
 function viewControl() {
   const list = S.pickers.filter(p => !p.guest);
-  const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + r + '</option>';
+  const sel = (p, r) => '<option value="' + r + '"' + (p.role === r ? ' selected' : '') + '>' + roleTh(r) + '</option>';
   return (ctrlMsg ? '<div class="okmsg">' + esc(ctrlMsg) + '</div>' : '') + dispatchCard(S.orders.filter(o => o.status === 'todo'), S.pickers.filter(p => p.role === 'picker')) + guestPanel() + closeCard() + purgeCard() +
     '<div class="card"><h2>ทีมงานและสิทธิ์</h2><div class="muted" style="margin-bottom:8px">แก้ชื่อ อีเมล สิทธิ์ หรือสถานะ แล้วกด <b>บันทึก</b> ที่แถวนั้น · picker = รับงานจัดของ · viewer = ดู Dashboard อย่างเดียว · admin = จัดการทั้งหมด · "อยู่ในทีม" ปิดเมื่อหยุดยาว/ลาออก (งานค้างจะถูกแจกให้คนอื่นทันที) · ถ้าเปลี่ยนอีเมล คนนั้นต้องล็อกอินด้วยอีเมลใหม่ (และต้องเป็น Test user ใน Google Cloud)</div>' +
     '<div style="overflow:auto"><table><tr><th>ชื่อ</th><th>อีเมล Google</th><th>สิทธิ์</th><th>อยู่ในทีม</th><th>สถานะตอนนี้</th><th></th></tr>' + list.map((p, i) =>
@@ -2857,7 +2857,7 @@ function viewControl() {
       '<td style="text-align:center"><input type="checkbox" id="cA_' + i + '" ' + (p.active ? 'checked' : '') + '></td>' +
       '<td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td>' +
       '<td style="white-space:nowrap"><button class="p" style="padding:6px 12px" onclick="editPicker(' + i + ',this)">บันทึก</button> <button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
-    '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูอย่างเดียว)</option><option value="admin">admin</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>';
+    '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูภาพรวม ไม่มี Control)</option><option value="admin">admin (ทำได้ทุกอย่าง)</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>';
 }
 function clearCtrlDrafts() { Object.keys(draft).forEach(k => { if (/^c[NERA]_/.test(k)) delete draft[k]; }); }
 function editPicker(i, btn) {
@@ -2873,6 +2873,8 @@ function editPicker(i, btn) {
   }).catch(() => { alert('เชื่อมต่อไม่ได้ ยังไม่ได้บันทึก'); if (btn) { btn.disabled = false; btn.textContent = 'บันทึก'; } });
 }
 function setDuty(on) { if (!confirm(on ? 'กลับมารับงานใช่ไหม?' : 'ไปพักใช่ไหม?\n\n⚠️ งานที่ค้างอยู่ของคุณจะถูกส่งต่อให้คนอื่นทันที และจะไม่มีงานใหม่เข้าจนกว่าจะกดกลับมารับงาน')) return; if (S) { const mp = S.pickers.find(p => p.key === S.me.email); if (mp) mp.duty = on; render(); } api('duty', { on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); else toast(on ? '✅ กลับมารับงานแล้ว' : '✅ บันทึกสถานะพักแล้ว งานค้างถูกส่งต่อให้คนอื่น'); poll(); }); }
+const ROLE_TH = { admin: 'admin (ทำได้ทุกอย่าง)', picker: 'picker (คนจัด)', viewer: 'viewer (ดูภาพรวม ไม่มี Control)' };
+const roleTh = r => ROLE_TH[r] || r;
 function setTab(t) { tab = t; clearCtrlDrafts(); render(); }
 function reassignJob(id, sel) {
   const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
