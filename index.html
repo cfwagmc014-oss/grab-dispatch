@@ -2473,7 +2473,7 @@ function render() {
   if (me.guest && me.gstatus === 'pending') { $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 8px;color:var(--red)">รอผู้ดูแลอนุมัติ…</h2><div class="muted" style="margin-bottom:14px">สวัสดี ' + esc(me.name) + ' · เมื่อผู้ดูแลกดอนุมัติ งานจะเด้งขึ้นหน้านี้เอง</div><button class="s" onclick="leaveGuest()">ยกเลิก</button></div>'; return; }
   const tabs = [['orders', 'Orders Task']];
   if (!me.guest) tabs.push(['dash', 'Dashboard']);
-  if (!me.guest) tabs.push(['cancel', '🚫 ยกเลิก']);
+  if (!me.guest) tabs.push(['cancel', '🚫 สินค้าขาดและยกเลิก']);
   if (isAdmin) tabs.push(['control', 'Control']);
   if (!tabs.some(t => t[0] === tab)) tab = tabs[0][0];
   const age = S.reader.ts ? now - S.reader.ts : Infinity;
@@ -2556,17 +2556,28 @@ function viewMy() {
   return bar + viewMyJobs() + myHistory();
 }
 function myHistory() {   // ประวัติการจัดของตัวเองเท่านั้น (เซิร์ฟเวอร์ส่งมาเฉพาะออเดอร์ของคนนี้)
-  const mine = S.orders.filter(o => o.picker_email === S.me.email && o.status !== 'todo').sort((a, b) => b.done_at - a.done_at);
-  const sod = startOfDay(), td = mine.filter(o => o.status === 'done' && o.done_at >= sod), all = mine.filter(o => o.status === 'done');
+  const hr = histRange(), mine = S.orders.filter(o => o.picker_email === S.me.email && o.status !== 'todo' && o.done_at >= hr[0] && o.done_at < hr[1]).sort((a, b) => b.done_at - a.done_at);
+  const sod = startOfDay(), td = S.orders.filter(o => o.picker_email === S.me.email && o.status === 'done' && o.done_at >= sod), all = mine.filter(o => o.status === 'done');
   const on = td.filter(o => pickMin(o) <= slaMin).length, avg = td.length ? Math.round(td.reduce((s, o) => s + pickMin(o), 0) / td.length) : 0;
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
-  return '<div class="card" style="margin-top:14px;border-left-color:#12b886"><h2>📜 ประวัติการจัดของฉัน</h2><div class="kpis">' +
+  return '<div class="card" style="margin-top:14px;border-left-color:#12b886"><h2>📜 ประวัติการจัดของฉัน' + histBar() + '</h2><div class="kpis">' +
     '<div class="k green"><i class="ic">✅</i><b>' + td.length + '</b><span>จัดเสร็จวันนี้</span></div>' +
     '<div class="k teal"><i class="ic">⚡</i><b>' + (td.length ? Math.round(on / td.length * 100) + '%' : '-') + '</b><span>ตามเวลา (≤ ' + slaMin + ' นาที)</span></div>' +
     '<div class="k purple"><i class="ic">⏱️</i><b>' + (td.length ? avg : '-') + '</b><span>นาที – เฉลี่ยวันนี้</span></div></div>' +
     '<div style="overflow:auto"><table><tr><th>ปิดเมื่อ</th><th>ออเดอร์</th><th>รายการ</th><th>ใช้เวลา</th></tr>' +
     (mine.length ? mine.slice(0, 50).map(o => '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + (o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">' + pickMin(o) + ' น.</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ได้กดปิด</span>') + shortTxt(o) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>') +
-    '</table></div><div class="muted" style="margin-top:6px">ทั้งหมดที่จัดเสร็จ ' + all.length + ' ออเดอร์ · แสดงล่าสุด 50 รายการ · เห็นเฉพาะของตัวเอง</div></div>';
+    '</table></div><div class="muted" style="margin-top:6px">จัดเสร็จในวันที่เลือก ' + all.length + ' ออเดอร์ · แสดงล่าสุด 50 รายการ · เห็นเฉพาะของตัวเอง</div></div>';
+}
+let histDay = 0;   // 0 = วันนี้, 1..6 = ย้อนหลัง
+function setHistDay(v) { histDay = Number(v) || 0; render(); }
+function histRange() { const s = startOfDay() - histDay * 86400000; return [s, s + 86400000]; }
+function histBar() {
+  const opts = []; for (let i = 0; i < 7; i++) { const d = new Date(startOfDay() - i * 86400000); opts.push('<option value="' + i + '"' + (i === histDay ? ' selected' : '') + '>' + (i === 0 ? 'วันนี้' : i === 1 ? 'เมื่อวาน' : d.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' })) + '</option>'); }
+  return '<span style="float:right;font-weight:400;font-size:13px">ดูย้อนหลัง 7 วัน: <select onchange="setHistDay(this.value)">' + opts.join('') + '</select></span>';
+}
+function markCancel(id) {
+  if (!confirm('เปลี่ยนออเดอร์ ' + id + ' จาก "ไม่ปิดงาน" เป็น "ยกเลิก" ใช่ไหม?\n\nใช้เมื่อออเดอร์นี้ถูกยกเลิก (เช่น ยกเลิกที่ฝั่ง Grab) ระบบจะนับเป็นยอดสูญเสียในหน้า ยกเลิก')) return;
+  api('markCancel', { id }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + (r.error === 'not_found' ? 'ออเดอร์นี้ไม่ได้อยู่ในสถานะไม่ปิดงานแล้ว' : r.error)); else toast('🚫 เปลี่ยน ' + id + ' เป็นยกเลิกแล้ว'); poll(); }).catch(() => alert('เชื่อมต่อไม่ได้ ลองใหม่'));
 }
 const jobState = {};   // id -> 'saving' | 'ok'
 function viewMyJobs() {
@@ -2642,12 +2653,12 @@ function viewMonitor() {
       (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
         (isAdmin || S.me.role === 'viewer' ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
-  const hist = S.orders.filter(o => o.status !== 'todo').sort((a, b) => b.done_at - a.done_at).slice(0, 80);
+  const hr = histRange(), hist = S.orders.filter(o => o.status !== 'todo' && o.done_at >= hr[0] && o.done_at < hr[1]).sort((a, b) => b.done_at - a.done_at);
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
-  h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(ปิดล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
-    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span>';
-    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
-  }).join('') : '<tr><td colspan="6" class="muted">ยังไม่มีออเดอร์ที่ปิด</td></tr>') + '</table></div></div>';
+  h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(' + (histDay === 0 ? 'วันนี้' : 'ย้อนหลัง ' + histDay + ' วัน') + ' · ปิดล่าสุดอยู่บนสุด)</span>' + histBar() + '</h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
+    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span> <button class="s" style="padding:2px 8px;font-size:12px" onclick="markCancel(\'' + o.id + '\')">🚫 เป็นยกเลิก</button>';
+    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(o.id) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.status === 'cancelled' ? lossAmt(o) : o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="muted">ไม่มีออเดอร์ที่ปิดในวันที่เลือก</td></tr>') + '</table></div></div>';
   return h;
 }
 
@@ -2715,10 +2726,14 @@ const lossAmt = o => { if (o.amount > 0) return o.amount; return itemsOf(o).redu
 const qtyF = n => { n = Number(n) || 0; return (Math.round(n * 100) / 100).toLocaleString('th-TH'); };
 function cancelList() {   // ออเดอร์ที่ยกเลิกในช่วงที่เลือก (นับตามเวลาที่กดยกเลิก) ใหม่สุดก่อน
   const days = range === 'today' ? 1 : Number(range), from = startOfDay() - (days - 1) * 86400000;
-  return { days, os: S.orders.filter(o => o.status === 'cancelled' && (o.done_at || o.created_at) >= from).sort((a, b) => (b.done_at || 0) - (a.done_at || 0)) };
+  const byT = (a, b) => (b.done_at || 0) - (a.done_at || 0);
+  return { days, os: S.orders.filter(o => o.status === 'cancelled' && (o.done_at || o.created_at) >= from).sort(byT), sh: S.orders.filter(o => o.picks === 'S' && o.status === 'done' && o.done_at >= from).sort(byT) };
 }
 function viewCancel() {
-  const { days, os } = cancelList();
+  const { days, os, sh } = cancelList();
+  const sAgg = {}; let sPieces = 0, sMoney = 0;
+  sh.forEach(o => itemsOf(o).forEach(x => { const k = x[3] || x[0], a = sAgg[k] || (sAgg[k] = { n: x[0], u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; sPieces += Number(x[1]) || 0; sMoney += (Number(x[1]) || 0) * (Number(x[2]) || 0); }));
+  const sRows = Object.keys(sAgg).map(k => sAgg[k]).sort((a, b) => b.q - a.q);
   const agg = {}; let noDet = 0, pieces = 0;
   os.forEach(o => { const its = itemsOf(o); if (!its.length) { noDet++; return; }
     its.forEach(x => { const k = x[3] || x[0]; const a = agg[k] || (agg[k] = { n: x[0], u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; pieces += Number(x[1]) || 0; }); });
@@ -2728,12 +2743,22 @@ function viewCancel() {
   let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 วันนี้</button>' +
     [['7', '7 วัน'], ['14', '14 วัน'], ['30', '30 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
     '<span style="flex:1"></span><button onclick="exportCancelCsv()">⬇ CSV</button></div>';
-  h += '<div class="muted" style="margin:-4px 0 10px">ออเดอร์ที่ถูกยกเลิก' + (range === 'today' ? 'วันนี้' : 'ย้อนหลัง ' + days + ' วัน') + ' (นับตามเวลาที่กดยกเลิก)</div>';
-  h += '<div class="kpis"><div class="k rose"><i class="ic">🚫</i><b>' + os.length + '</b><span>ออเดอร์ที่ยกเลิก</span></div>' +
+  h += '<div class="muted" style="margin:-4px 0 10px">สินค้าขาดและออเดอร์ที่ยกเลิก' + (range === 'today' ? 'วันนี้' : 'ย้อนหลัง ' + days + ' วัน') + ' (นับตามเวลาที่ปิดงาน/กดยกเลิก)</div>';
+  const kpiCancel = '<div class="k rose"><i class="ic">🚫</i><b>' + os.length + '</b><span>ออเดอร์ที่ยกเลิก</span></div>' +
     '<div class="k purple"><i class="ic">🛒</i><b>' + rows.length + '</b><span>สินค้าที่ถูกยกเลิก (SKU)</span></div>' +
     '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(pieces) + '</b><span>จำนวนรวมที่ถูกยกเลิก</span></div>' +
     '<div class="k blue"><i class="ic">💰</i><b>' + (money > 0 ? '฿' + Math.round(money).toLocaleString('th-TH') : '-') + '</b><span>มูลค่าที่ยกเลิก (ยอดสูญเสีย)</span>' + (unk ? '<small>ไม่ทราบยอด ' + unk + ' ออเดอร์</small>' : '') + '</div></div>';
   if (noDet) h += '<div class="muted" style="margin-bottom:10px">* ' + noDet + ' ออเดอร์ไม่มีรายการสินค้า (ยกเลิกก่อนอัปเดตระบบ หรือตัวอ่านยังไม่ได้อ่านรายละเอียด)</div>';
+  h += '<div class="sec">❗ สินค้าที่ขาด (Picker กดปุ่ม "ขาด" ในออเดอร์ที่จัดเสร็จ)</div><div class="kpis">' +
+    '<div class="k rose"><i class="ic">❗</i><b>' + sRows.length + '</b><span>สินค้าที่ขาด (SKU)</span></div>' +
+    '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(sPieces) + '</b><span>จำนวนรวมที่ขาด</span></div>' +
+    '<div class="k purple"><i class="ic">📉</i><b>' + sh.length + '</b><span>ออเดอร์ที่มีของขาด</span></div>' +
+    '<div class="k blue"><i class="ic">💸</i><b>' + (sMoney > 0 ? '฿' + Math.round(sMoney).toLocaleString('th-TH') : '-') + '</b><span>มูลค่าสินค้าที่ขาด (ประมาณ)</span></div></div>' +
+    '<div class="card" style="border-left-color:#f08c00"><h2>🧾 สรุปสินค้าที่ขาด (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
+    (sRows.length ? sRows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีสินค้าที่ขาดในช่วงนี้</td></tr>') + '</table></div>' +
+    '<h2 style="margin-top:14px">📋 รายออเดอร์ที่มีของขาด</h2><div style="overflow:auto"><table><tr><th>ปิดงานเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>สินค้าที่ขาด × จำนวน</th></tr>' +
+    (sh.length ? sh.map(o => '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(o.id) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + itemsOf(o).map(x => esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีออเดอร์ที่มีของขาดในช่วงนี้</td></tr>') + '</table></div></div>';
+  h += '<div class="sec">🚫 ออเดอร์ที่ถูกยกเลิกทั้งใบ</div><div class="kpis">' + kpiCancel;
   h += '<div class="card" style="border-left-color:#e03131"><h2>🧾 สรุปสินค้าที่ถูกยกเลิก (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
     (rows.length ? rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีข้อมูลสินค้าที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
   h += '<div class="card" style="border-left-color:#e03131"><h2>📋 รายออเดอร์ที่ยกเลิก <span class="muted" style="font-weight:400">(ล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>ยกเลิกเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>ยอดเงิน</th><th>รายการสินค้า × จำนวน</th></tr>' +
