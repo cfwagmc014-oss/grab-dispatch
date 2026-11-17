@@ -48,7 +48,9 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .duty{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:12px;padding:12px 16px;margin-bottom:12px;border:2px solid var(--ok);background:#eaf7f1}
 .duty.brk{border-color:var(--warn);background:#fff6e6}
 .duty b{font-size:16px}
-.boards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);gap:10px;margin-bottom:14px;align-items:start;overflow-x:auto;padding-bottom:6px}
+.boards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;align-items:start}
+@media(max-width:1000px){.boards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:620px){.boards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .col{background:#fff;border:1px solid var(--b);border-radius:12px;padding:10px}
 .col.off{opacity:.65}
 .col h3{margin:0 0 4px;font-size:15px;display:flex;justify-content:space-between;gap:6px;align-items:center}
@@ -57,6 +59,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.qrbox svg{width:190px;height:190px;border:1px solid var(--b);border-radius:8px;background:#fff}
 .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
 .g2 .card{margin-bottom:0}
+.hg{display:inline-block;animation:hgf 1.8s ease-in-out infinite}@keyframes hgf{0%,15%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .rng button{border:1px solid var(--b);background:#fff;border-radius:18px;padding:6px 14px;font:inherit;cursor:pointer}
 .rng button.on{background:linear-gradient(100deg,#4c6ef5,#7048e8);color:#fff;border-color:#4c6ef5;box-shadow:0 2px 6px rgba(76,110,245,.35)}
@@ -2470,7 +2473,8 @@ const startOfDay = () => { const d = new Date(); d.setHours(0,0,0,0); return d.g
 
 function render() {
   const me = S.me, isAdmin = me.role === 'admin', now = S.now;
-  if (me.guest && me.gstatus === 'pending') { $('app').innerHTML = '<div class="login"><h2 style="margin:0 0 8px;color:var(--red)">รอผู้ดูแลอนุมัติ…</h2><div class="muted" style="margin-bottom:14px">สวัสดี ' + esc(me.name) + ' · เมื่อผู้ดูแลกดอนุมัติ งานจะเด้งขึ้นหน้านี้เอง</div><button class="s" onclick="leaveGuest()">ยกเลิก</button></div>'; return; }
+  if (me.guest && me.gstatus === 'pending') { wasPending = true; $('app').innerHTML = '<div class="login"><div style="font-size:56px;text-align:center"><span class="hg">⏳</span></div><h2 style="margin:0 0 8px;color:var(--red);text-align:center">รอผู้ดูแลอนุมัติ…</h2><div class="muted" style="margin-bottom:14px">สวัสดี ' + esc(me.name) + ' · เมื่อผู้ดูแลกดอนุมัติ งานจะเด้งขึ้นหน้านี้เอง</div><button class="s" onclick="leaveGuest()">ยกเลิก</button></div>'; return; }
+  if (wasPending) { wasPending = false; toast('✅ สำเร็จ – ผู้ดูแลอนุมัติแล้ว เริ่มรับงานได้เลย'); }
   const tabs = [['orders', 'Orders Task']];
   if (!me.guest) tabs.push(['dash', 'Dashboard']);
   if (!me.guest) tabs.push(['cancel', '🚫 สินค้าขาดและยกเลิก']);
@@ -2871,9 +2875,9 @@ function guestPanel() {
   const gs = S.guests || [], pend = gs.filter(g => g.status === 'pending'), act = gs.filter(g => g.status === 'active');
   let h = '';
   if (pend.length) h += '<div class="card" style="border-color:var(--red);background:#fff6f6"><h2>🙋 มีผู้ขอเข้าช่วยจัดออเดอร์ ' + pend.length + ' คน</h2>' + pend.map(g =>
-    '<div class="row" style="margin-bottom:6px"><b>' + esc(g.name) + '</b><span class="muted">ขอเมื่อ ' + mins(S.now - g.created_at) + ' นาทีก่อน</span><button class="p" onclick="guestAct(\'guestApprove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\')">อนุมัติ</button><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'reject\')">ปฏิเสธ</button></div>').join('') + '</div>';
+    '<div class="row" style="margin-bottom:6px"><b>' + esc(g.name) + '</b><span class="muted">ขอเมื่อ ' + mins(S.now - g.created_at) + ' นาทีก่อน</span>' + (guestBusy[g.id] ? gChip(g.id) : '<button class="p" onclick="guestAct(\'guestApprove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\')">อนุมัติ</button><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'reject\')">ปฏิเสธ</button>') + '</div>').join('') + '</div>';
   h += '<div class="card"><h2>ผู้ช่วยด่วน (ชั่วคราว)</h2><div class="muted" style="margin-bottom:8px">จัดออเดอร์ไม่ทัน? สร้าง QR ให้คนช่วยสแกน ไม่ต้องมีบัญชี Google · ขอเข้าแล้วกดอนุมัติ ระบบดึงงานค้างมาแบ่งให้ทันที · ผู้ช่วยกดยกเลิกหรือคุณกดเอาออก งานจะกลับไปแจกใหม่เอง</div>' +
-    act.map(g => '<div class="row" style="margin-bottom:6px"><span class="chip ok">ผู้ช่วยด่วน</span><b>' + esc(g.name) + '</b><span class="muted">หมดเวลาใน ' + Math.max(0, Math.round((g.expires_at - S.now) / 3600000)) + ' ชม.</span><button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'remove\')">เอาออก</button></div>').join('') +
+    act.map(g => '<div class="row" style="margin-bottom:6px"><span class="chip ok">ผู้ช่วยด่วน</span><b>' + esc(g.name) + '</b><span class="muted">หมดเวลาใน ' + Math.max(0, Math.round((g.expires_at - S.now) / 3600000)) + ' ชม.</span>' + (guestBusy[g.id] ? gChip(g.id) : '<button class="s" onclick="guestAct(\'guestRemove\',\'' + g.id + '\',\'' + esc(g.name).replace(/\'/g, '') + '\',\'remove\')">เอาออก</button>') + '</div>').join('') +
     '<div class="row" style="margin-top:6px"><button class="p" onclick="newQr()">➕ สร้าง QR ผู้ช่วยด่วน</button></div>';
   if (qr && qr.exp > Date.now()) {
     let svg = ''; try { const q = qrcode(0, 'M'); q.addData(qr.url); q.make(); svg = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch (e) {}
@@ -2883,12 +2887,16 @@ function guestPanel() {
 }
 function hideQr() { if (!confirm('ซ่อน QR นี้?\n\nQR จะยังใช้งานได้จนหมดเวลา (ถ้าอยากให้ใช้ไม่ได้ทันที ให้สร้าง QR ใหม่)')) return; qr = null; render(); toast('ซ่อน QR แล้ว'); }
 function newQr() { if (!confirm('สร้าง QR ผู้ช่วยด่วนใหม่?\n\n⚠️ QR ใบเดิม (ถ้ามี) จะใช้ไม่ได้ทันที ใบใหม่ใช้ได้ 2 ชั่วโมง และคนที่สแกนต้องรอคุณกดอนุมัติก่อนจึงจะรับงานได้')) return; api('joinCode').then(r => { if (!r.ok) { alert('ไม่สำเร็จ: ' + r.error); return; } qr = { url: location.origin + location.pathname + '?join=' + r.code, exp: r.exp }; toast('✅ สร้าง QR แล้ว ใช้ได้ 2 ชั่วโมง'); render(); }); }
+const gChip = id => guestBusy[id] === 'ok' ? '<span class="chip ok">✅ สำเร็จ</span>' : '<span class="chip warn"><span class="hg">⏳</span> กำลังดำเนินการ…</span>';
+let wasPending = false;
+const guestBusy = {};   // id -> 'saving' | 'ok'
 function guestAct(a, id, name, kind) {
   const msg = a === 'guestApprove'
     ? 'อนุมัติ "' + name + '" ให้เข้ามาช่วยจัดออเดอร์?\n\n⚠️ ระบบจะดึงงานค้างบางส่วนจากคนอื่นมาให้ทันที และเขาจะอยู่ในระบบได้ 12 ชั่วโมง กรุณาตรวจสอบว่ารู้จักคนนี้จริงก่อนกดยืนยัน'
     : kind === 'remove' ? 'ให้ "' + name + '" ออกจากระบบ?\n\n⚠️ งานที่เขาถืออยู่จะถูกส่งต่อให้คนอื่นทันที' : 'ปฏิเสธคำขอของ "' + name + '" ?';
   if (!confirm(msg)) return;
-  api(a, { id }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + r.error); else toast(a === 'guestApprove' ? '✅ อนุมัติ ' + name + ' แล้ว งานถูกแบ่งให้' : kind === 'remove' ? '✅ ให้ ' + name + ' ออกแล้ว งานถูกส่งต่อ' : '✅ ปฏิเสธคำขอแล้ว'); poll(); });
+  if (guestBusy[id]) return; guestBusy[id] = 'saving'; render();
+  api(a, { id }).then(r => { if (!r.ok) { delete guestBusy[id]; render(); alert('ไม่สำเร็จ: ' + r.error); } else { guestBusy[id] = 'ok'; render(); setTimeout(() => { delete guestBusy[id]; if (S) render(); }, 2500); } if (r.ok) toast(a === 'guestApprove' ? '✅ อนุมัติ ' + name + ' แล้ว งานถูกแบ่งให้' : kind === 'remove' ? '✅ ให้ ' + name + ' ออกแล้ว งานถูกส่งต่อ' : '✅ ปฏิเสธคำขอแล้ว'); poll(); }).catch(() => { delete guestBusy[id]; render(); alert('เชื่อมต่อไม่ได้ ยังไม่ได้ดำเนินการ – ลองใหม่'); });
 }
 function leaveGuest() { if (!confirm('ยกเลิกและออกจากระบบ? งานที่ค้างอยู่จะส่งต่อให้คนอื่น')) return; api('leave').then(() => endGuest('ออกจากระบบแล้ว ขอบคุณที่ช่วยครับ 🙏')).catch(() => endGuest('ออกจากระบบแล้ว')); }
 let ctrlMsg = '';
