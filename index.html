@@ -2732,11 +2732,11 @@ function cancelList() {   // ออเดอร์ที่ยกเลิกใ
 function viewCancel() {
   const { days, os, sh } = cancelList();
   const sAgg = {}; let sPieces = 0, sMoney = 0;
-  sh.forEach(o => itemsOf(o).forEach(x => { const k = x[3] || x[0], a = sAgg[k] || (sAgg[k] = { n: x[0], u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; sPieces += Number(x[1]) || 0; sMoney += (Number(x[1]) || 0) * (Number(x[2]) || 0); }));
+  sh.forEach(o => itemsOf(o).forEach(x => { const k = x[3] || x[0], a = sAgg[k] || (sAgg[k] = { n: x[0], c: x[3] || '', u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; sPieces += Number(x[1]) || 0; sMoney += (Number(x[1]) || 0) * (Number(x[2]) || 0); }));
   const sRows = Object.keys(sAgg).map(k => sAgg[k]).sort((a, b) => b.q - a.q);
   const agg = {}; let noDet = 0, pieces = 0;
   os.forEach(o => { const its = itemsOf(o); if (!its.length) { noDet++; return; }
-    its.forEach(x => { const k = x[3] || x[0]; const a = agg[k] || (agg[k] = { n: x[0], u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; pieces += Number(x[1]) || 0; }); });
+    its.forEach(x => { const k = x[3] || x[0]; const a = agg[k] || (agg[k] = { n: x[0], c: x[3] || '', u: x[5] || '', q: 0, o: 0 }); a.q += Number(x[1]) || 0; a.o++; pieces += Number(x[1]) || 0; }); });
   const rows = Object.keys(agg).map(k => agg[k]).sort((a, b) => b.q - a.q);
   const money = os.reduce((s, o) => s + lossAmt(o), 0), unk = os.filter(o => !(lossAmt(o) > 0)).length;
   const t = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -2754,17 +2754,17 @@ function viewCancel() {
     '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(sPieces) + '</b><span>จำนวนรวมที่ขาด</span></div>' +
     '<div class="k purple"><i class="ic">📉</i><b>' + sh.length + '</b><span>ออเดอร์ที่มีของขาด</span></div>' +
     '<div class="k blue"><i class="ic">💸</i><b>' + (sMoney > 0 ? '฿' + Math.round(sMoney).toLocaleString('th-TH') : '-') + '</b><span>มูลค่าสินค้าที่ขาด (ประมาณ)</span></div></div>' +
-    '<div class="card" style="border-left-color:#f08c00"><h2>🧾 สรุปสินค้าที่ขาด (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
-    (sRows.length ? sRows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีสินค้าที่ขาดในช่วงนี้</td></tr>') + '</table></div>' +
+    '<div class="card" style="border-left-color:#f08c00"><h2>🧾 สรุปสินค้าที่ขาด (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>รหัส SKU</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
+    (sRows.length ? sRows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(r.c || '-') + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีสินค้าที่ขาดในช่วงนี้</td></tr>') + '</table></div>' +
     '<h2 style="margin-top:14px">📋 รายออเดอร์ที่มีของขาด</h2><div style="overflow:auto"><table><tr><th>ปิดงานเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>สินค้าที่ขาด × จำนวน</th></tr>' +
-    (sh.length ? sh.map(o => '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(o.id) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + itemsOf(o).map(x => esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีออเดอร์ที่มีของขาดในช่วงนี้</td></tr>') + '</table></div></div>';
+    (sh.length ? sh.map(o => '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(o.id) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + itemsOf(o).map(x => (x[3] ? '<span class="muted">[' + esc(x[3]) + ']</span> ' : '') + esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีออเดอร์ที่มีของขาดในช่วงนี้</td></tr>') + '</table></div></div>';
   h += '<div class="sec">🚫 ออเดอร์ที่ถูกยกเลิกทั้งใบ</div><div class="kpis">' + kpiCancel;
-  h += '<div class="card" style="border-left-color:#e03131"><h2>🧾 สรุปสินค้าที่ถูกยกเลิก (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
-    (rows.length ? rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">ไม่มีข้อมูลสินค้าที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
+  h += '<div class="card" style="border-left-color:#e03131"><h2>🧾 สรุปสินค้าที่ถูกยกเลิก (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>รหัส SKU</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
+    (rows.length ? rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(r.c || '-') + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีข้อมูลสินค้าที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
   h += '<div class="card" style="border-left-color:#e03131"><h2>📋 รายออเดอร์ที่ยกเลิก <span class="muted" style="font-weight:400">(ล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>ยกเลิกเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>ยอดเงิน</th><th>รายการสินค้า × จำนวน</th></tr>' +
     (os.length ? os.map(o => { const its = itemsOf(o);
       return '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(o.id) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + fmtB(lossAmt(o)) + (!(o.amount > 0) && lossAmt(o) > 0 ? ' <small class="muted">(ประมาณ)</small>' : '') + '</td><td>' +
-        (its.length ? its.map(x => esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') : '<span class="muted">' + o.items + ' รายการ (ไม่มีรายละเอียด)</span>') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">ยังไม่มีออเดอร์ที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
+        (its.length ? its.map(x => (x[3] ? '<span class="muted">[' + esc(x[3]) + ']</span> ' : '') + esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') : '<span class="muted">' + o.items + ' รายการ (ไม่มีรายละเอียด)</span>') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">ยังไม่มีออเดอร์ที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
   return h;
 }
 function exportCancelCsv() {
