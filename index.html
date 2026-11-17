@@ -2653,7 +2653,7 @@ function viewMonitor() {
     const l = load[p.key], live = p.active && p.duty && p.online;
     const st = !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : !p.online ? '<span class="chip">ออฟไลน์</span>' : '<span class="chip ok">พร้อมรับงาน</span>';
     const jobs = mine(p);
-    return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3><div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
+    return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3>' + (dutyBtn(p) ? '<div style="margin:-2px 0 6px">' + dutyBtn(p).trim() + '</div>' : '') + '<div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
       (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(o.id) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
         (isAdmin || S.me.role === 'viewer' ? (jobState[o.id] === 'saving' ? '<button class="p" disabled style="width:100%;margin:6px 0;opacity:.75">⏳ กำลังบันทึก…</button>' : jobState[o.id] === 'ok' ? '<button class="p" disabled style="width:100%;margin:6px 0;background:var(--ok)">✅ ปิดงานสำเร็จ</button>' : '<button class="p" style="width:100%;margin:6px 0" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>') : '') +
         (isAdmin || S.me.role === 'viewer' ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
@@ -2941,7 +2941,7 @@ function viewControl() {
       '<tr><td><input id="cN_' + i + '" value="' + esc(p.name) + '" size="14"></td><td><input id="cE_' + i + '" value="' + esc(p.email) + '" size="26"></td>' +
       '<td><select id="cR_' + i + '">' + sel(p, 'picker') + sel(p, 'viewer') + sel(p, 'admin') + '</select></td>' +
       '<td style="text-align:center"><input type="checkbox" id="cA_' + i + '" ' + (p.active ? 'checked' : '') + '></td>' +
-      '<td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + '</td>' +
+      '<td>' + (p.role !== 'picker' ? '' : !p.active ? '<span class="chip">ไม่อยู่ในทีม</span>' : !p.duty ? '<span class="chip warn">พัก</span>' : p.online ? '<span class="chip ok">พร้อมรับงาน</span>' : '<span class="chip">ออฟไลน์</span>') + dutyBtn(p) + '</td>' +
       '<td style="white-space:nowrap"><button class="p" style="padding:6px 12px" onclick="editPicker(' + i + ',this)">บันทึก</button> <button class="s" onclick="delPicker(\'' + esc(p.email) + '\')">ลบ</button></td></tr>').join('') + '</table></div></div>' +
     '<div class="card"><h2>เพิ่มคนใหม่</h2><div class="row"><input id="nName" placeholder="ชื่อ"><input id="nMail" placeholder="อีเมล Google" size="26"><select id="nRole"><option value="picker">picker (คนจัดของ)</option><option value="viewer">viewer (ดูภาพรวม ไม่มี Control)</option><option value="admin">admin (ทำได้ทุกอย่าง)</option></select><button class="p" onclick="addPicker()">เพิ่ม</button></div></div>';
 }
@@ -2962,6 +2962,17 @@ function setDuty(on) { if (!confirm(on ? 'กลับมารับงาน�
 const ROLE_TH = { admin: 'admin (ทำได้ทุกอย่าง)', picker: 'picker (คนจัด)', viewer: 'viewer (ดูภาพรวม ไม่มี Control)' };
 const roleTh = r => ROLE_TH[r] || r;
 function setTab(t) { tab = t; clearCtrlDrafts(); render(); }
+function dutyBtn(p) {   // แอดมินสั่งพัก/เปิดรับงานให้ Picker
+  if (S.me.role !== 'admin' || p.role !== 'picker' || !p.active || p.guest || !p.key) return '';
+  return p.duty ? ' <button class="s" style="padding:2px 8px;font-size:12px;color:#c92a2a;border-color:#f3b4b4" onclick="setPickerDuty(\'' + esc(p.key) + '\',false,\'' + esc(p.name).replace(/\'/g, '') + '\')">⏸ ปิดรับงาน</button>'
+    : ' <button class="s" style="padding:2px 8px;font-size:12px;color:#087f5b;border-color:#8ce0bd" onclick="setPickerDuty(\'' + esc(p.key) + '\',true,\'' + esc(p.name).replace(/\'/g, '') + '\')">▶ เปิดรับงาน</button>';
+}
+function setPickerDuty(email, on, name) {
+  const msg = on ? 'เปิดให้ "' + name + '" รับงานอีกครั้ง?\n\n(ต้องออนไลน์อยู่ด้วยจึงจะได้รับงาน)' : 'ปิดรับงานของ "' + name + '"?\n\n⚠️ ระบบจะไม่แจกออเดอร์ใหม่ให้เขา และงานค้างที่เขาถืออยู่จะถูกส่งต่อให้คนอื่นทันที\n(เขากด "เปิดรับงาน" เองได้ หรือแอดมินกดเปิดให้)';
+  if (!confirm(msg)) return;
+  toast('⏳ กำลังดำเนินการ…');
+  api('setPickerDuty', { email, on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + (r.error === 'not_found' ? 'ไม่พบ Picker คนนี้' : r.error)); else toast(on ? '✅ สำเร็จ – เปิดรับงานให้ ' + name + ' แล้ว' : '✅ สำเร็จ – ปิดรับงานของ ' + name + ' แล้ว งานค้างถูกส่งต่อ'); poll(); }).catch(() => alert('เชื่อมต่อไม่ได้ ยังไม่ได้ดำเนินการ – ลองใหม่'));
+}
 function reassignJob(id, sel) {
   const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
   if (!sel.value || !confirm('ย้ายออเดอร์ ' + id + ' ไปให้ "' + name + '" ใช่ไหม?')) { render(); return; }
