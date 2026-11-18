@@ -59,6 +59,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.qrbox svg{width:190px;height:190px;border:1px solid var(--b);border-radius:8px;background:#fff}
 .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
 .g2 .card{margin-bottom:0}
+.hblk{border:1px solid #dfe5f2;border-radius:12px;margin:10px 0;background:#fff;overflow:hidden}.hblk>summary{cursor:pointer;padding:10px 12px;font-weight:800;background:linear-gradient(90deg,#eef3ff,#f8f9ff);list-style:none}.hblk>summary::-webkit-details-marker{display:none}.hblk>summary::before{content:'▾ ';color:#5b6cff}.hblk:not([open])>summary::before{content:'▸ '}.hblk table{margin:0}
 .hg{display:inline-block;animation:hgf 1.8s ease-in-out infinite}@keyframes hgf{0%,15%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .rng button{border:1px solid var(--b);background:#fff;border-radius:18px;padding:6px 14px;font:inherit;cursor:pointer}
@@ -2661,10 +2662,10 @@ function viewMonitor() {
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const hr = histRange(), hist = S.orders.filter(o => o.status !== 'todo' && o.done_at >= hr[0] && o.done_at < hr[1]).sort((a, b) => b.done_at - a.done_at);
   const fdt = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
-  h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(' + (histDay === 0 ? 'วันนี้' : 'ย้อนหลัง ' + histDay + ' วัน') + ' · ปิดล่าสุดอยู่บนสุด)</span>' + histBar() + '</h2><div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + (hist.length ? hist.map(o => {
+  h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(' + (histDay === 0 ? 'วันนี้' : 'ย้อนหลัง ' + histDay + ' วัน') + ' · ปิดล่าสุดอยู่บนสุด)</span>' + histBar() + '</h2>' + histBlocks(hist, hr, o => {
     const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span> <button class="s" style="padding:2px 8px;font-size:12px" onclick="markCancel(\'' + o.id + '\')">🚫 เป็นยกเลิก</button>';
-    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td><b>' + esc(did(o)) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.status === 'cancelled' ? lossAmt(o) : o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
-  }).join('') : '<tr><td colspan="6" class="muted">ไม่มีออเดอร์ที่ปิดในวันที่เลือก</td></tr>') + '</table></div></div>';
+    return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td style="white-space:nowrap"><b>' + esc(did(o)) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.status === 'cancelled' ? lossAmt(o) : o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
+  }) + '</div>';
   return h;
 }
 
@@ -3036,6 +3037,17 @@ async function capturePage(el, title) {   // แคปทั้งหน้า (
     toast('✅ สำเร็จ – บันทึกรูปลงเครื่องแล้ว (โฟลเดอร์ Downloads) ' + name);
   } catch (e) { alert('แคปภาพไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต) – ใช้การแคปหน้าจอของเครื่องแทนได้ครับ'); }
   finally { main.removeAttribute('data-capnow'); }
+}
+function histBlocks(list, hr, rowFn) {   // แบ่งประวัติเป็นบล็อกตามช่วงเวลา (7 ชม./บล็อก: 00–07, 07–14, 14–21, 21–24) ใหม่สุดอยู่บน
+  if (!list.length) return '<div class="muted" style="padding:8px 0">ไม่มีออเดอร์ที่ปิดในวันที่เลือก</div>';
+  const pad = n => String(n).padStart(2, '0'), out = [], H = 3600000;
+  [[21, 24], [14, 21], [7, 14], [0, 7]].forEach(([a, b]) => {
+    const l = list.filter(o => o.done_at >= hr[0] + a * H && o.done_at < hr[0] + b * H); if (!l.length) return;
+    const dn = l.filter(o => o.status === 'done'), ov = dn.filter(o => pickMin(o) > slaMin).length, cc = l.filter(o => o.status === 'cancelled').length, cl = l.filter(o => o.status === 'closed').length;
+    out.push('<details class="hblk" open><summary>🕖 ' + pad(a) + ':00 – ' + (b === 24 ? '24:00' : pad(b) + ':00') + ' <span class="muted" style="font-weight:600">· ' + l.length + ' ออเดอร์ · จัดเสร็จ ' + dn.length + (ov ? ' (เกินเวลา ' + ov + ')' : '') + (cc ? ' · ยกเลิก ' + cc : '') + (cl ? ' · ไม่ปิดงาน ' + cl : '') + '</span></summary>' +
+      '<div style="overflow:auto"><table><tr><th>วันที่/เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + l.map(rowFn).join('') + '</table></div></details>');
+  });
+  return out.join('');
 }
 function reassignJob(id, sel) {
   const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
