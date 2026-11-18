@@ -2485,11 +2485,12 @@ function render() {
   const readerTxt = S.reader.ts ? (online ? 'ตัวอ่าน Grab ออนไลน์ (' + Math.floor(age / 1000) + ' วิที่แล้ว)' : 'ตัวอ่าน Grab หยุดทำงาน ' + mins(age) + ' นาที') : 'ยังไม่เคยรับข้อมูลจาก Grab';
   let h = '<header><h1>🛵 GO EXPRESS ระยอง – Grab Dispatch</h1><div class="hr"><span><span class="dot ' + (online ? 'on' : 'off') + '"></span>' + readerTxt + '</span>' +
     '<span>' + esc(me.name) + ' · ' + (me.guest ? 'ผู้ช่วยด่วน' : me.role === 'viewer' ? 'viewer (ดูภาพรวม)' : esc(me.role)) + '</span>' + (me.guest ? '<button class="s" onclick="leaveGuest()">ยกเลิก / ออก</button>' : '<button class="s" onclick="logout()">ออกจากระบบ</button>') + '</div></header>' +
-    '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '<button onclick="capturePage()" title="แคปหน้านี้เป็นรูป" style="float:right">📸 แคปภาพ</button></nav><main>';
+    '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '<button onclick="capturePage()" title="แคปทั้งหน้าเป็นรูป" style="float:right">📸 แคปทั้งหน้า</button></nav><main>';
   if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
   h += tab === 'orders' ? viewOrders() : tab === 'dash' ? viewDash() : tab === 'cancel' ? viewCancel() : viewControl();
   $('app').innerHTML = h + '</main>';
+  decorateCap();
   Object.keys(draft).forEach(k => { const el = $(k); if (el) { if (el.type === 'checkbox') el.checked = !!draft[k]; else el.value = draft[k]; } });   // คืนค่าที่พิมพ์ค้างไว้
 }
 
@@ -2755,7 +2756,7 @@ function viewCancel() {
     '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(pieces) + '</b><span>จำนวนรวมที่ถูกยกเลิก</span></div>' +
     '<div class="k blue"><i class="ic">💰</i><b>' + (money > 0 ? '฿' + Math.round(money).toLocaleString('th-TH') : '-') + '</b><span>มูลค่าที่ยกเลิก (ยอดสูญเสีย)</span>' + (unk ? '<small>ไม่ทราบยอด ' + unk + ' ออเดอร์</small>' : '') + '</div></div>';
   if (noDet) h += '<div class="muted" style="margin-bottom:10px">* ' + noDet + ' ออเดอร์ไม่มีรายการสินค้า (ยกเลิกก่อนอัปเดตระบบ หรือตัวอ่านยังไม่ได้อ่านรายละเอียด)</div>';
-  h += '<div class="sec">❗ สินค้าที่ขาด (Picker กดปุ่ม "ขาด" ในออเดอร์ที่จัดเสร็จ)</div><div class="kpis">' +
+  h += '<div class="capbox" data-cap="สินค้าที่ขาด"><div class="sec">❗ สินค้าที่ขาด (Picker กดปุ่ม "ขาด" ในออเดอร์ที่จัดเสร็จ)</div><div class="kpis">' +
     '<div class="k rose"><i class="ic">❗</i><b>' + sRows.length + '</b><span>สินค้าที่ขาด (SKU)</span></div>' +
     '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(sPieces) + '</b><span>จำนวนรวมที่ขาด</span></div>' +
     '<div class="k purple"><i class="ic">📉</i><b>' + sh.length + '</b><span>ออเดอร์ที่มีของขาด</span></div>' +
@@ -2764,14 +2765,14 @@ function viewCancel() {
     (sRows.length ? sRows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(r.c || '-') + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีสินค้าที่ขาดในช่วงนี้</td></tr>') + '</table></div>' +
     '<h2 style="margin-top:14px">📋 รายออเดอร์ที่มีของขาด</h2><div style="overflow:auto"><table><tr><th>ปิดงานเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>สินค้าที่ขาด × จำนวน</th></tr>' +
     (sh.length ? sh.map(o => '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(did(o)) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + itemsOf(o).map(x => (x[3] ? '<span class="muted">[' + esc(x[3]) + ']</span> ' : '') + esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีออเดอร์ที่มีของขาดในช่วงนี้</td></tr>') + '</table></div></div>';
-  h += '<div class="sec">🚫 ออเดอร์ที่ถูกยกเลิกทั้งใบ</div><div class="kpis">' + kpiCancel;
+  h += '</div><div class="capbox" data-cap="ออเดอร์ที่ยกเลิก"><div class="sec">🚫 ออเดอร์ที่ถูกยกเลิกทั้งใบ</div><div class="kpis">' + kpiCancel;
   h += '<div class="card" style="border-left-color:#e03131"><h2>🧾 สรุปสินค้าที่ถูกยกเลิก (รวมจำนวน)</h2><div style="overflow:auto"><table><tr><th>#</th><th>รหัส SKU</th><th>สินค้า</th><th>จำนวนรวม</th><th>อยู่ในกี่ออเดอร์</th></tr>' +
     (rows.length ? rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(r.c || '-') + '</td><td>' + esc(r.n) + '</td><td><b>' + qtyF(r.q) + '</b> ' + esc(r.u) + '</td><td>' + r.o + '</td></tr>').join('') : '<tr><td colspan="5" class="muted">ไม่มีข้อมูลสินค้าที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
   h += '<div class="card" style="border-left-color:#e03131"><h2>📋 รายออเดอร์ที่ยกเลิก <span class="muted" style="font-weight:400">(ล่าสุดอยู่บนสุด)</span></h2><div style="overflow:auto"><table><tr><th>ยกเลิกเมื่อ</th><th>ออเดอร์</th><th>ผู้จัด</th><th>ยอดเงิน</th><th>รายการสินค้า × จำนวน</th></tr>' +
     (os.length ? os.map(o => { const its = itemsOf(o);
       return '<tr><td style="white-space:nowrap">' + t(o.done_at) + '</td><td>' + esc(did(o)) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + fmtB(lossAmt(o)) + (!(o.amount > 0) && lossAmt(o) > 0 ? ' <small class="muted">(ประมาณ)</small>' : '') + '</td><td>' +
         (its.length ? its.map(x => (x[3] ? '<span class="muted">[' + esc(x[3]) + ']</span> ' : '') + esc(x[0]) + ' <b>×' + qtyF(x[1]) + '</b>' + (x[5] ? ' ' + esc(x[5]) : '')).join('<br>') : '<span class="muted">' + o.items + ' รายการ (ไม่มีรายละเอียด)</span>') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">ยังไม่มีออเดอร์ที่ยกเลิกในช่วงนี้</td></tr>') + '</table></div></div>';
-  return h;
+  return h + '</div>';
 }
 function exportCancelCsv() {
   if (!confirm('ดาวน์โหลด CSV รายการสินค้าที่ยกเลิกของช่วงเวลาที่เลือก?')) return;
@@ -2979,25 +2980,46 @@ function loadH2C() {
   if (window.html2canvas) return Promise.resolve();
   return h2cP || (h2cP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; s.onload = ok; s.onerror = () => { h2cP = null; no(new Error('load')); }; document.head.appendChild(s); }));
 }
-async function capturePage() {   // แคปหน้าที่เปิดอยู่เป็นรูป PNG แล้วแชร์ (มือถือ -> LINE ฯลฯ) หรือดาวน์โหลด
-  const main = document.querySelector('main'); if (!main) return;
+function addCapBtn(box, title) {
+  const b = document.createElement('button'); b.className = 'nocap'; b.textContent = '📸'; b.title = 'แคปเฉพาะส่วนนี้เป็นรูป';
+  b.style.cssText = 'float:right;margin:0 0 4px 8px;padding:3px 9px;font-size:13px;border-radius:8px;border:1px solid #cfd4dc;background:#fff;cursor:pointer';
+  b.onclick = ev => { ev.stopPropagation(); capturePage(box, title); };
+  box.insertBefore(b, box.firstChild);
+}
+function decorateCap() {   // ปุ่มแคปเฉพาะส่วนในหน้า Dashboard / สินค้าขาดและยกเลิก / ประวัติ
+  document.querySelectorAll('main .capbox').forEach(b => addCapBtn(b, b.getAttribute('data-cap')));
+  if (tab !== 'dash' && tab !== 'cancel' && tab !== 'orders') return;
+  document.querySelectorAll('main .card').forEach(c => {
+    if (c.closest('.capbox')) return;
+    const t = c.querySelector('h2'); if (!t) return;
+    const name = t.textContent.replace(/ดูย้อนหลัง.*$/, '').trim();
+    if (tab === 'orders' && !/^ประวัติ|^📜/.test(name)) return;
+    addCapBtn(c, name);
+  });
+}
+async function capturePage(el, title) {   // แคปทั้งหน้า (ไม่ส่งพารามิเตอร์) หรือเฉพาะส่วนที่เลือก เป็นรูป PNG แล้วแชร์ (มือถือ -> LINE ฯลฯ) หรือดาวน์โหลด
+  const main = el || document.querySelector('main'); if (!main) return;
   toast('⏳ กำลังสร้างรูป…');
+  main.setAttribute('data-capnow', '1');
   try {
     await loadH2C();
-    const label = (document.querySelector('nav button.on') || {}).textContent || '', stamp = new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' });
+    const label = title || (document.querySelector('nav button.on') || {}).textContent || '', stamp = new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' });
     const canvas = await html2canvas(main, { scale: 2, backgroundColor: '#f4f5f7', useCORS: true, logging: false,
-      onclone: (doc) => { doc.querySelectorAll('*').forEach(el => { const o = getComputedStyle(el).overflow; if (o === 'auto' || o === 'scroll') el.style.overflow = 'visible'; });
-        const m = doc.querySelector('main'), t = doc.createElement('div'); t.style.cssText = 'padding:10px 6px 12px;font:700 16px sans-serif;color:#222';
+      onclone: (doc) => { doc.querySelectorAll('*').forEach(x => { const o = getComputedStyle(x).overflow; if (o === 'auto' || o === 'scroll') x.style.overflow = 'visible'; });
+        doc.querySelectorAll('.nocap').forEach(x => x.remove());
+        const m = doc.querySelector('[data-capnow]'), t = doc.createElement('div'); t.style.cssText = 'padding:10px 6px 12px;font:700 16px sans-serif;color:#222';
         t.textContent = 'GO EXPRESS – ระยอง · ' + label.trim() + ' · ' + stamp; m.insertBefore(t, m.firstChild); } });
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png')); if (!blob) throw new Error('blob');
     const name = 'grab-' + tab + '-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.png', file = new File([blob], name, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (mobile && navigator.canShare && navigator.canShare({ files: [file] })) {   // มือถือ -> หน้าต่างแชร์ (LINE / บันทึกรูป); คอม -> บันทึกลงเครื่องทันที
       try { await navigator.share({ files: [file], title: 'GO EXPRESS – ระยอง' }); toast('✅ สำเร็จ – แชร์รูปแล้ว'); return; }
       catch (e) { if (e && e.name === 'AbortError') return; }   // ผู้ใช้กดยกเลิกการแชร์ -> จบ; error อื่น -> ดาวน์โหลดแทน
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast('✅ สำเร็จ – บันทึกรูปแล้ว');
+    toast('✅ สำเร็จ – บันทึกรูปลงเครื่องแล้ว (โฟลเดอร์ Downloads) ' + name);
   } catch (e) { alert('แคปภาพไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต) – ใช้การแคปหน้าจอของเครื่องแทนได้ครับ'); }
+  finally { main.removeAttribute('data-capnow'); }
 }
 function reassignJob(id, sel) {
   const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
