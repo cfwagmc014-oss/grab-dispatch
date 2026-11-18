@@ -59,7 +59,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.qrbox svg{width:190px;height:190px;border:1px solid var(--b);border-radius:8px;background:#fff}
 .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
 .g2 .card{margin-bottom:0}
-.hblks{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}@media(max-width:700px){.hblks{grid-template-columns:1fr}}
+.hblks{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;clear:both;width:100%}.hblk .hb{max-height:72vh;overflow:auto}.hblk .hb th{position:sticky;top:0;background:#fff;z-index:1}@media(max-width:700px){.hblks{grid-template-columns:1fr}}
 .hblk{border:1px solid #dfe5f2;border-radius:12px;margin:6px 0;min-width:0;background:#fff;overflow:hidden}.hblk>summary{cursor:pointer;padding:10px 12px;font-weight:800;background:linear-gradient(90deg,#eef3ff,#f8f9ff);list-style:none}.hblk>summary::-webkit-details-marker{display:none}.hblk>summary::before{content:'▾ ';color:#5b6cff}.hblk:not([open])>summary::before{content:'▸ '}.hblk table{margin:0}
 .hg{display:inline-block;animation:hgf 1.8s ease-in-out infinite}@keyframes hgf{0%,15%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -3049,7 +3049,7 @@ function histBlocks(list, hr, rowFn) {   // 2 บล็อกตามเวล�
     const key = dayKey + k, open = key in hblkOpen ? hblkOpen[key] : wide;
     return '<details class="hblk"' + (open ? ' open' : '') + ' ontoggle="hblkOpen[\'' + key + '\']=this.open"><summary>' + title + ' <span class="muted" style="font-weight:600">· ' + l.length + ' ออเดอร์</span>' +
       '<div class="muted" style="font-weight:600;font-size:12px;margin:2px 0 0 16px">จัดเสร็จ ' + dn.length + (ov ? ' (เกินเวลา ' + ov + ')' : '') + (cc ? ' · ยกเลิก ' + cc : '') + (cl ? ' · ไม่ปิดงาน ' + cl : '') + (out ? ' · รวมนอกเวลาเปิด ' + out : '') + '</div></summary>' +
-      (l.length ? '<div style="overflow:auto"><table><tr><th>เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + l.map(rowFn).join('') + '</table></div>' : '<div class="muted" style="padding:8px 12px">ไม่มีออเดอร์ในช่วงนี้</div>') + '</details>';
+      (l.length ? '<div class="hb"><table><tr><th>เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + l.map(rowFn).join('') + '</table></div>' : '<div class="muted" style="padding:8px 12px">ไม่มีออเดอร์ในช่วงนี้</div>') + '</details>';
   }).join('') + '</div>';
 }
 function reassignJob(id, sel) {
