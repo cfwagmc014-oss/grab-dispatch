@@ -3040,10 +3040,10 @@ async function capturePage(el, title) {   // แคปทั้งหน้า (
   finally { main.removeAttribute('data-capnow'); }
 }
 const hblkOpen = {};   // จำสถานะพับ/ขยายของบล็อก ไม่ให้รีเซ็ตตอนหน้าอัปเดตอัตโนมัติ
-function histBlocks(list, hr, rowFn) {   // 2 บล็อกตามเวลาเปิด-ปิดร้าน: 08:00–15:00 | 15:01–21:30 (ก่อน 08:00 รวมบล็อกแรก, หลัง 21:30 รวมบล็อกหลัง) – คอม/แท็บเล็ต = ซ้าย-ขวา, มือถือ = แถวเดียวและซ่อนออเดอร์ไว้ก่อน
+function histBlocks(list, hr, rowFn) {   // 2 บล็อกตามเวลาเปิด-ปิดร้าน: 15:01–21:30 (ล่าสุด ซ้าย) | 08:00–15:00 (ขวา) (ก่อน 08:00 รวมบล็อกแรก, หลัง 21:30 รวมบล็อกหลัง) – คอม/แท็บเล็ต = ซ้าย-ขวา, มือถือ = แถวเดียวและซ่อนออเดอร์ไว้ก่อน
   const H = 3600000, cut = hr[0] + 15 * H + 60000, wide = !window.matchMedia('(max-width: 700px)').matches, dayKey = String(hr[0]);
-  const defs = [['🌤 08:00 – 15:00', list.filter(o => o.done_at < cut), 'a', o => o.done_at < hr[0] + 8 * H],
-                ['🌆 15:01 – 21:30', list.filter(o => o.done_at >= cut), 'b', o => o.done_at >= hr[0] + 21.5 * H]];
+  const defs = [['🌆 15:01 – 21:30', list.filter(o => o.done_at >= cut), 'b', o => o.done_at >= hr[0] + 21.5 * H],   // ช่วงล่าสุดอยู่ซ้าย (มือถือ = อยู่บน)
+                ['🌤 08:00 – 15:00', list.filter(o => o.done_at < cut), 'a', o => o.done_at < hr[0] + 8 * H]];
   return '<div class="hblks">' + defs.map(([title, l, k, outside]) => {
     const dn = l.filter(o => o.status === 'done'), ov = dn.filter(o => pickMin(o) > slaMin).length, cc = l.filter(o => o.status === 'cancelled').length, cl = l.filter(o => o.status === 'closed').length, out = l.filter(outside).length;
     const key = dayKey + k, open = key in hblkOpen ? hblkOpen[key] : wide;
