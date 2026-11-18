@@ -2704,6 +2704,22 @@ let range = 'today';
 let slaMin = 15; try { slaMin = Number(localStorage.getItem('slaMin')) || 15; } catch (e) {}
 function setSla(v) { slaMin = Number(v) || 15; try { localStorage.setItem('slaMin', slaMin); } catch (e) {} toast('ตั้งเกณฑ์ปิดงานตามเวลา = ภายใน ' + slaMin + ' นาที'); render(); }
 function setRange(r) { range = r; render(); }
+function setDay(v) { if (v) { range = 'd:' + v; render(); } }
+const DAY = 86400000;
+function dayWin() {   // ช่วงเวลาของโหมดดูรายวัน (เมื่อวาน / เลือกวันที่) – null = ไม่ใช่โหมดรายวัน
+  if (range === 'yesterday') return [startOfDay() - DAY, startOfDay()];
+  if (/^d:\d{4}-\d{2}-\d{2}$/.test(range)) { const [y, m, d] = range.slice(2).split('-').map(Number), t = new Date(y, m - 1, d).getTime(); return [t, t + DAY]; }
+  return null;
+}
+function rangeLabel(days) {
+  if (range === 'today') return 'วันนี้'; if (range === 'yesterday') return 'เมื่อวาน';
+  const w = dayWin(); if (w) return 'วันที่ ' + new Date(w[0]).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
+  return 'ย้อนหลัง ' + days + ' วัน';
+}
+function dayPicker() {
+  const w = dayWin(), iso = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  return '<label class="muted" style="margin-left:6px">📆 เลือกวันที่ <input type="date" value="' + (w ? iso(w[0]) : '') + '" min="' + iso(startOfDay() - 62 * DAY) + '" max="' + iso(startOfDay()) + '" onchange="setDay(this.value)" style="padding:5px 8px;border:1px solid #cfd4dc;border-radius:10px;font:inherit"></label>';
+}
 let dispState = '';
 function dispatchCard(todo, pickers) {
   const items = todo.reduce((s, o) => s + o.items, 0), un = todo.filter(o => !o.picker_email).length;
@@ -2724,17 +2740,17 @@ function redistributeNow() {
 }
 function viewOrders() { return S.me.role === 'picker' ? viewMy() : viewMonitor(); }
 function rangeOrders() {
-  const days = range === 'today' ? 1 : Number(range);
-  const from = startOfDay() - (days - 1) * 86400000;
-  return { days, from, os: S.orders.filter(o => o.created_at >= from) };
+  const dw = dayWin(), days = range === 'today' || dw ? 1 : Number(range);
+  const from = dw ? dw[0] : startOfDay() - (days - 1) * 86400000, to = dw ? dw[1] : Infinity;   // โหมดรายวัน = 00:00–24:00 ของวันนั้นเท่านั้น
+  return { days, from, to, os: S.orders.filter(o => o.created_at >= from && o.created_at < to) };
 }
 const lossAmt = o => { if (o.amount > 0) return o.amount; return itemsOf(o).reduce((t, x) => t + (Number(x[1]) || 0) * (Number(x[2]) || 0), 0); };   // ยอดสูญเสียของออเดอร์ยกเลิก: ใช้ยอดรวม ถ้าไม่มีให้ประมาณจากรายการสินค้า
 const did = o => String(o.id).split('~')[0];   // เลขออเดอร์ที่โชว์ (ตัดรหัสต่อท้ายของใบเก่าที่เลขซ้ำออก)
 const qtyF = n => { n = Number(n) || 0; return (Math.round(n * 100) / 100).toLocaleString('th-TH'); };
 function cancelList() {   // ออเดอร์ที่ยกเลิกในช่วงที่เลือก (นับตามเวลาที่กดยกเลิก) ใหม่สุดก่อน
-  const days = range === 'today' ? 1 : Number(range), from = startOfDay() - (days - 1) * 86400000;
+  const dw = dayWin(), days = range === 'today' || dw ? 1 : Number(range), from = dw ? dw[0] : startOfDay() - (days - 1) * 86400000, to = dw ? dw[1] : Infinity;
   const byT = (a, b) => (b.done_at || 0) - (a.done_at || 0);
-  return { days, os: S.orders.filter(o => o.status === 'cancelled' && (o.done_at || o.created_at) >= from).sort(byT), sh: S.orders.filter(o => o.picks === 'S' && o.status === 'done' && o.done_at >= from).sort(byT) };
+  return { days, os: S.orders.filter(o => o.status === 'cancelled' && (o.done_at || o.created_at) >= from && (o.done_at || o.created_at) < to).sort(byT), sh: S.orders.filter(o => o.picks === 'S' && o.status === 'done' && o.done_at >= from && o.done_at < to).sort(byT) };
 }
 function viewCancel() {
   const { days, os, sh } = cancelList();
@@ -2747,10 +2763,10 @@ function viewCancel() {
   const rows = Object.keys(agg).map(k => agg[k]).sort((a, b) => b.q - a.q);
   const money = os.reduce((s, o) => s + lossAmt(o), 0), unk = os.filter(o => !(lossAmt(o) > 0)).length;
   const t = ms => ms ? new Date(ms).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
-  let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 วันนี้</button>' +
+  let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 วันนี้</button><button class="' + (range === 'yesterday' ? 'on' : '') + '" onclick="setRange(\'yesterday\')">⏮ เมื่อวาน</button>' + dayPicker() +
     [['7', '7 วัน'], ['14', '14 วัน'], ['30', '30 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
     '<span style="flex:1"></span><button onclick="exportCancelCsv()">⬇ CSV</button></div>';
-  h += '<div class="muted" style="margin:-4px 0 10px">สินค้าขาดและออเดอร์ที่ยกเลิก' + (range === 'today' ? 'วันนี้' : 'ย้อนหลัง ' + days + ' วัน') + ' (นับตามเวลาที่ปิดงาน/กดยกเลิก)</div>';
+  h += '<div class="muted" style="margin:-4px 0 10px">สินค้าขาดและออเดอร์ที่ยกเลิก' + rangeLabel(days) + ' (นับตามเวลาที่ปิดงาน/กดยกเลิก)</div>';
   const kpiCancel = '<div class="k rose"><i class="ic">🚫</i><b>' + os.length + '</b><span>ออเดอร์ที่ยกเลิก</span></div>' +
     '<div class="k purple"><i class="ic">🛒</i><b>' + rows.length + '</b><span>สินค้าที่ถูกยกเลิก (SKU)</span></div>' +
     '<div class="k amber"><i class="ic">📦</i><b>' + qtyF(pieces) + '</b><span>จำนวนรวมที่ถูกยกเลิก</span></div>' +
@@ -2787,7 +2803,7 @@ function monthTotal() {
   return S.orders.filter(o => o.created_at >= m0 && o.created_at < m1).length;
 }
 function viewDash() {
-  const { days, from, os } = rangeOrders();
+  const { days, from, to, os } = rangeOrders();
   const done = os.filter(o => o.status === 'done'), closed = os.filter(o => o.status === 'closed'), cancelled = os.filter(o => o.status === 'cancelled'), todo = os.filter(o => o.status === 'todo');
   const items = done.reduce((s, o) => s + o.items, 0), money = done.reduce((s, o) => s + (o.amount || 0), 0);
   const avg = done.length ? Math.round(done.reduce((s, o) => s + pickMin(o), 0) / done.length) : 0;
@@ -2803,16 +2819,16 @@ function viewDash() {
   const mxT = Math.max.apply(null, rowsD.map(r => r.t / r.n).concat([1]));
   // ช่วงเวลาความหนาแน่น
   const hc = new Array(24).fill(0), dayHour = {};
-  os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; if (o.created_at >= startOfDay()) hc[hr]++; });   // กราฟแท่งด้านบน = วันปัจจุบันเสมอ
+  os.forEach(o => { const d = new Date(o.created_at), hr = d.getHours(), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); (dayHour[dk] = dayHour[dk] || new Array(24).fill(0))[hr]++; if (dayWin() ? (o.created_at >= from && o.created_at < to) : o.created_at >= startOfDay()) hc[hr]++; });   // กราฟแท่งด้านบน = วันปัจจุบันเสมอ
   let first = 24, last = -1; S.orders.forEach(o => { const hr = new Date(o.created_at).getHours(); first = Math.min(first, hr); last = Math.max(last, hr); });
   const h0 = Math.min(7, first === 24 ? 7 : first), h1 = Math.max(21, last);
   const mxH = Math.max.apply(null, hc.concat([1])), peak = hc.indexOf(mxH);
   const pad = n => (n < 10 ? '0' : '') + n;
-  let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 มอนิเตอร์วันนี้</button>' +
+  let h = '<div class="rng"><button class="' + (range === 'today' ? 'on' : '') + '" onclick="setRange(\'today\')">📅 มอนิเตอร์วันนี้</button><button class="' + (range === 'yesterday' ? 'on' : '') + '" onclick="setRange(\'yesterday\')">⏮ เมื่อวาน</button>' + dayPicker() +
     '<b style="margin-left:8px">ภาพรวม Performance:</b>' + [['7', '7 วัน'], ['14', '14 วัน'], ['30', '30 วัน']].map(r => '<button class="ov ' + (range === r[0] ? 'on' : '') + '" onclick="setRange(\'' + r[0] + '\')">📊 ' + r[1] + '</button>').join('') +
     '<span style="flex:1"></span><span class="muted">ปิดตามเวลา = ภายใน</span><select onchange="setSla(this.value)">' + [5, 10, 15, 20, 30, 45, 60].map(m => '<option value="' + m + '"' + (m === slaMin ? ' selected' : '') + '>' + m + ' นาที</option>').join('') + '</select>' +
     '<button onclick="exportCsv()">⬇ CSV</button></div>';
-  h += '<div class="muted" style="margin:-4px 0 10px">' + (range === 'today' ? 'กำลังดูข้อมูลของวันนี้ (' + new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : 'กำลังดูภาพรวมย้อนหลัง ' + days + ' วัน') + '</div>';
+  h += '<div class="muted" style="margin:-4px 0 10px">' + (range === 'today' || dayWin() ? 'กำลังดูข้อมูลของ' + rangeLabel(1).replace('วันที่ ', '') + (range === 'today' ? ' (' + new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : range === 'yesterday' ? ' (' + new Date(startOfDay() - DAY).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }) + ')' : '') : 'กำลังดูภาพรวมย้อนหลัง ' + days + ' วัน') + '</div>';
   const cancelMoney = cancelled.reduce((x, o) => x + lossAmt(o), 0), cancelUnk = cancelled.filter(o => !(lossAmt(o) > 0)).length;
   const maxMin = done.length ? Math.max.apply(null, done.map(pickMin)) : 0;
   const shortOrders = os.filter(o => o.picks === 'S'), shortItems = shortOrders.reduce((x, o) => x + itemsOf(o).length, 0);
@@ -2837,7 +2853,7 @@ function viewDash() {
     '<div class="k gray"><i class="ic">💸</i><b>' + fmtB(cancelMoney) + '</b><span>ยอดเงินจากออเดอร์ที่ยกเลิก</span>' + (cancelUnk ? '<small>ไม่ทราบยอด ' + cancelUnk + ' ออเดอร์</small>' : '') + '</div></div>';
   if (noAmt) h += '<div class="muted" style="margin:-6px 0 12px">* ' + noAmt + ' ออเดอร์ยังไม่มียอดเงิน (ระบบเริ่มเก็บยอดเงินตั้งแต่ตัวอ่านเวอร์ชัน 1.5)</div>';
   // ตารางสรุปรายคน (อยู่บนสุดเพื่อดูภาพรวมทันที)
-  h += '<div class="card" style="border-left-color:#12b886"><h2>📋 สรุปรายคน (Picker) ' + (range === 'today' ? 'วันนี้' : days + ' วัน') + '</h2><div style="overflow:auto"><table><tr><th>Picker</th><th>จัดเสร็จ</th><th>ตามเวลา</th><th>เกินเวลา</th><th>% ตามเวลา</th><th>ไม่ปิดงาน</th><th>สินค้า (รายการ)</th><th>ยอดเงิน</th><th>เวลาเฉลี่ย</th></tr>' +
+  h += '<div class="card" style="border-left-color:#12b886"><h2>📋 สรุปรายคน (Picker) ' + (range === 'today' ? 'วันนี้' : dayWin() ? rangeLabel(1) : days + ' วัน') + '</h2><div style="overflow:auto"><table><tr><th>Picker</th><th>จัดเสร็จ</th><th>ตามเวลา</th><th>เกินเวลา</th><th>% ตามเวลา</th><th>ไม่ปิดงาน</th><th>สินค้า (รายการ)</th><th>ยอดเงิน</th><th>เวลาเฉลี่ย</th></tr>' +
     (rows.length ? rows.map(r => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + r.n + '</td><td style="color:#087f5b;font-weight:600">' + r.on + '</td><td style="color:#c92a2a;font-weight:600">' + r.ov + '</td><td>' + pctC(r.on, r.n) + '</td><td style="color:#d9480f">' + r.nc + '</td><td>' + r.items + '</td><td>' + fmtB(r.money) + '</td><td>' + (r.n ? Math.round(r.t / r.n) + ' นาที' : '-') + '</td></tr>').join('') +
       '<tr style="font-weight:700;background:#f3f6ff"><td>รวม</td><td>' + done.length + '</td><td>' + onT.length + '</td><td>' + ovT.length + '</td><td>' + pctC(onT.length, done.length) + '</td><td>' + closed.length + '</td><td>' + items + '</td><td>' + fmtB(money) + '</td><td>' + avg + ' นาที</td></tr>' : '<tr><td colspan="9" class="muted">ยังไม่มีข้อมูล</td></tr>') + '</table></div></div>';
   // donut + ตาราง
