@@ -2485,7 +2485,7 @@ function render() {
   const readerTxt = S.reader.ts ? (online ? 'ตัวอ่าน Grab ออนไลน์ (' + Math.floor(age / 1000) + ' วิที่แล้ว)' : 'ตัวอ่าน Grab หยุดทำงาน ' + mins(age) + ' นาที') : 'ยังไม่เคยรับข้อมูลจาก Grab';
   let h = '<header><h1>🛵 GO EXPRESS ระยอง – Grab Dispatch</h1><div class="hr"><span><span class="dot ' + (online ? 'on' : 'off') + '"></span>' + readerTxt + '</span>' +
     '<span>' + esc(me.name) + ' · ' + (me.guest ? 'ผู้ช่วยด่วน' : me.role === 'viewer' ? 'viewer (ดูภาพรวม)' : esc(me.role)) + '</span>' + (me.guest ? '<button class="s" onclick="leaveGuest()">ยกเลิก / ออก</button>' : '<button class="s" onclick="logout()">ออกจากระบบ</button>') + '</div></header>' +
-    '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</nav><main>';
+    '<nav>' + tabs.map(t => '<button class="' + (t[0] === tab ? 'on' : '') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '<button onclick="capturePage()" title="แคปหน้านี้เป็นรูป" style="float:right">📸 แคปภาพ</button></nav><main>';
   if (S.offline) h += '<div class="card" style="border-color:var(--warn)">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…</div>';
   if (!online && S.reader.ts) h += '<div class="card" style="border-color:var(--red)"><b style="color:var(--red)">ตัวอ่าน Grab ไม่ส่งข้อมูล</b> – เช็กว่าคอมที่ร้านยังเปิดหน้า Grab Merchant ค้างไว้และล็อกอินอยู่ ออเดอร์ใหม่จะยังไม่เข้าระบบจนกว่าจะกลับมา</div>';
   h += tab === 'orders' ? viewOrders() : tab === 'dash' ? viewDash() : tab === 'cancel' ? viewCancel() : viewControl();
@@ -2973,6 +2973,31 @@ function setPickerDuty(email, on, name) {
   if (!confirm(msg)) return;
   toast('⏳ กำลังดำเนินการ…');
   api('setPickerDuty', { email, on }).then(r => { if (!r.ok) alert('ไม่สำเร็จ: ' + (r.error === 'not_found' ? 'ไม่พบ Picker คนนี้' : r.error)); else toast(on ? '✅ สำเร็จ – เปิดรับงานให้ ' + name + ' แล้ว' : '✅ สำเร็จ – ปิดรับงานของ ' + name + ' แล้ว งานค้างถูกส่งต่อ'); poll(); }).catch(() => alert('เชื่อมต่อไม่ได้ ยังไม่ได้ดำเนินการ – ลองใหม่'));
+}
+let h2cP = null;
+function loadH2C() {
+  if (window.html2canvas) return Promise.resolve();
+  return h2cP || (h2cP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; s.onload = ok; s.onerror = () => { h2cP = null; no(new Error('load')); }; document.head.appendChild(s); }));
+}
+async function capturePage() {   // แคปหน้าที่เปิดอยู่เป็นรูป PNG แล้วแชร์ (มือถือ -> LINE ฯลฯ) หรือดาวน์โหลด
+  const main = document.querySelector('main'); if (!main) return;
+  toast('⏳ กำลังสร้างรูป…');
+  try {
+    await loadH2C();
+    const label = (document.querySelector('nav button.on') || {}).textContent || '', stamp = new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' });
+    const canvas = await html2canvas(main, { scale: 2, backgroundColor: '#f4f5f7', useCORS: true, logging: false,
+      onclone: (doc) => { doc.querySelectorAll('*').forEach(el => { const o = getComputedStyle(el).overflow; if (o === 'auto' || o === 'scroll') el.style.overflow = 'visible'; });
+        const m = doc.querySelector('main'), t = doc.createElement('div'); t.style.cssText = 'padding:10px 6px 12px;font:700 16px sans-serif;color:#222';
+        t.textContent = 'GO EXPRESS – ระยอง · ' + label.trim() + ' · ' + stamp; m.insertBefore(t, m.firstChild); } });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png')); if (!blob) throw new Error('blob');
+    const name = 'grab-' + tab + '-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.png', file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'GO EXPRESS – ระยอง' }); toast('✅ สำเร็จ – แชร์รูปแล้ว'); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }   // ผู้ใช้กดยกเลิกการแชร์ -> จบ; error อื่น -> ดาวน์โหลดแทน
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('✅ สำเร็จ – บันทึกรูปแล้ว');
+  } catch (e) { alert('แคปภาพไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต) – ใช้การแคปหน้าจอของเครื่องแทนได้ครับ'); }
 }
 function reassignJob(id, sel) {
   const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
