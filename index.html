@@ -59,7 +59,7 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.qrbox svg{width:190px;height:190px;border:1px solid var(--b);border-radius:8px;background:#fff}
 .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
 .g2 .card{margin-bottom:0}
-.hblks{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;clear:both;width:100%}.hblk .hb{max-height:72vh;overflow:auto}.hblk .hb th{position:sticky;top:0;background:#fff;z-index:1}@media(max-width:700px){.hblks{grid-template-columns:1fr}}
+.hblks{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;clear:both;width:100%}.hblk .hb{max-height:72vh;overflow:auto}.hblk table.ht{table-layout:fixed;width:100%}.hblk table.ht th,.hblk table.ht td{padding:7px 5px;font-size:13px;vertical-align:middle;overflow-wrap:anywhere}.hblk table.ht td:nth-child(-n+5){white-space:nowrap}.hblk table.ht td:nth-child(5){white-space:normal}.hblk table.ht .chip{padding:2px 7px;font-size:12px;white-space:normal;line-height:1.35}.hblk table.ht button.s{margin-top:3px}.hblk .hb th{position:sticky;top:0;background:#fff;z-index:1}@media(max-width:700px){.hblks{grid-template-columns:1fr}}
 .hblk{border:1px solid #dfe5f2;border-radius:12px;margin:6px 0;min-width:0;background:#fff;overflow:hidden}.hblk>summary{cursor:pointer;padding:10px 12px;font-weight:800;background:linear-gradient(90deg,#eef3ff,#f8f9ff);list-style:none}.hblk>summary::-webkit-details-marker{display:none}.hblk>summary::before{content:'▾ ';color:#5b6cff}.hblk:not([open])>summary::before{content:'▸ '}.hblk table{margin:0}
 .hg{display:inline-block;animation:hgf 1.8s ease-in-out infinite}@keyframes hgf{0%,15%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -2664,7 +2664,7 @@ function viewMonitor() {
   const hr = histRange(), hist = S.orders.filter(o => o.status !== 'todo' && o.done_at >= hr[0] && o.done_at < hr[1]).sort((a, b) => b.done_at - a.done_at);
   const fdt = ms => ms ? new Date(ms).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' น.' : '-';
   h += '<div class="card"><h2>ประวัติออเดอร์ที่ปิดแล้ว <span class="muted" style="font-weight:400">(' + (histDay === 0 ? 'วันนี้' : 'ย้อนหลัง ' + histDay + ' วัน') + ' · ปิดล่าสุดอยู่บนสุด)</span>' + histBar() + '</h2>' + histBlocks(hist, hr, o => {
-    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' (เกินเวลา)' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span> <button class="s" style="padding:2px 8px;font-size:12px" onclick="markCancel(\'' + o.id + '\')">🚫 เป็นยกเลิก</button>';
+    const st = o.status === 'done' ? '<span class="chip ' + (pickMin(o) > slaMin ? 'red' : 'ok') + '">จัดเสร็จ ' + pickMin(o) + ' น.' + (pickMin(o) > slaMin ? ' ⏰เกิน' : '') + '</span>' : o.status === 'cancelled' ? '<span class="chip" style="background:#eceff3;color:#495057;font-weight:600">🚫 ยกเลิก</span>' : '<span class="chip warn">ไม่ปิดงาน (ส่งต่อไรเดอร์)</span> <button class="s" style="padding:2px 8px;font-size:12px" onclick="markCancel(\'' + o.id + '\')">🚫 เป็นยกเลิก</button>';
     return '<tr><td style="white-space:nowrap">' + fdt(o.done_at) + '</td><td style="white-space:nowrap"><b>' + esc(did(o)) + '</b></td><td>' + o.items + '</td><td>' + fmtB(o.status === 'cancelled' ? lossAmt(o) : o.amount) + '</td><td>' + esc(o.picker_name || '-') + '</td><td>' + st + shortTxt(o) + '</td></tr>';
   }) + '</div>';
   return h;
@@ -3049,7 +3049,7 @@ function histBlocks(list, hr, rowFn) {   // 2 บล็อกตามเวล�
     const key = dayKey + k, open = key in hblkOpen ? hblkOpen[key] : wide;
     return '<details class="hblk"' + (open ? ' open' : '') + ' ontoggle="hblkOpen[\'' + key + '\']=this.open"><summary>' + title + ' <span class="muted" style="font-weight:600">· ' + l.length + ' ออเดอร์</span>' +
       '<div class="muted" style="font-weight:600;font-size:12px;margin:2px 0 0 16px">จัดเสร็จ ' + dn.length + (ov ? ' (เกินเวลา ' + ov + ')' : '') + (cc ? ' · ยกเลิก ' + cc : '') + (cl ? ' · ไม่ปิดงาน ' + cl : '') + (out ? ' · รวมนอกเวลาเปิด ' + out : '') + '</div></summary>' +
-      (l.length ? '<div class="hb"><table><tr><th>เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + l.map(rowFn).join('') + '</table></div>' : '<div class="muted" style="padding:8px 12px">ไม่มีออเดอร์ในช่วงนี้</div>') + '</details>';
+      (l.length ? '<div class="hb"><table class="ht"><colgroup><col style="width:15%"><col style="width:17%"><col style="width:11%"><col style="width:15%"><col style="width:16%"><col style="width:26%"></colgroup><tr><th>เวลาที่ปิด</th><th>ออเดอร์</th><th>รายการ</th><th>ยอดเงิน</th><th>ผู้จัด</th><th>สถานะ</th></tr>' + l.map(rowFn).join('') + '</table></div>' : '<div class="muted" style="padding:8px 12px">ไม่มีออเดอร์ในช่วงนี้</div>') + '</details>';
   }).join('') + '</div>';
 }
 function reassignJob(id, sel) {
