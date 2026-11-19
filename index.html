@@ -62,6 +62,9 @@ input,select{font:inherit;padding:7px 9px;border:1px solid var(--b);border-radiu
 .hblks{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;clear:both;width:100%}.hblk .hb{max-height:72vh;overflow:auto}.hblk table.ht{table-layout:fixed;width:100%}.hblk table.ht th,.hblk table.ht td{padding:7px 5px;font-size:13px;vertical-align:middle;overflow-wrap:anywhere}.hblk table.ht td:nth-child(-n+5){white-space:nowrap}.hblk table.ht td:nth-child(5){white-space:normal}.hblk table.ht .chip{padding:2px 7px;font-size:12px;white-space:normal;line-height:1.35}.hblk table.ht button.s{margin-top:3px}.hblk .hb th{position:sticky;top:0;background:#fff;z-index:1}@media(max-width:700px){.hblks{grid-template-columns:1fr}}
 .hblk{border:1px solid #dfe5f2;border-radius:12px;margin:6px 0;min-width:0;background:#fff;overflow:hidden}.hblk>summary{cursor:pointer;padding:10px 12px;font-weight:800;background:linear-gradient(90deg,#eef3ff,#f8f9ff);list-style:none}.hblk>summary::-webkit-details-marker{display:none}.hblk>summary::before{content:'▾ ';color:#5b6cff}.hblk:not([open])>summary::before{content:'▸ '}.hblk table{margin:0}
 @keyframes rpIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+button.p.dg{background:linear-gradient(135deg,#12b76a,#0a9b5a)!important;color:#fff!important;box-shadow:0 4px 12px rgba(18,183,106,.35)!important}
+button.p.dy{background:linear-gradient(135deg,#ffc107,#f59f00)!important;color:#3b2a00!important;box-shadow:0 4px 12px rgba(245,159,0,.4)!important}
+button.p.dr{background:linear-gradient(135deg,#f03e3e,#c92a2a)!important;color:#fff!important;box-shadow:0 4px 12px rgba(224,49,49,.4)!important}
 .hg{display:inline-block;animation:hgf 1.8s ease-in-out infinite}@keyframes hgf{0%,15%{transform:rotate(0)}65%,100%{transform:rotate(180deg)}}
 .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .rng button{border:1px solid var(--b);background:#fff;border-radius:18px;padding:6px 14px;font:inherit;cursor:pointer}
@@ -2613,7 +2616,7 @@ function viewMyJobs() {
     const st = jobState[o.id];
     const btn = st === 'saving' ? '<button class="p" disabled style="opacity:.75">⏳ กำลังบันทึก…</button>'
       : st === 'ok' ? '<button class="p" disabled style="background:var(--ok)">✅ ปิดงานสำเร็จ</button>'
-      : '<button class="p" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>';
+      : '<button class="p ' + doneCls(o) + '" onclick="doneJob(\'' + o.id + '\')">' + doneTxt(o) + '</button>';
     return '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(did(o)) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(S.now - o.created_at) + ' นาที</div><div style="margin-bottom:10px">' + riderChip(o.rider) + '</div>' + itemsBlock(o) + '<div style="margin-top:10px">' + btn + '</div>' + (st ? '' : '<button class="s" style="width:100%;margin-top:8px;color:#c92a2a;border-color:#f3b4b4" onclick="cancelJob(\'' + o.id + '\')">🚫 ยกเลิก Order</button>') + '</div>';
   }).join('') + '</div>';
 }
@@ -2673,7 +2676,7 @@ function viewMonitor() {
     const jobs = mine(p);
     return '<div class="col' + (live ? '' : ' off') + '"><h3><span>' + esc(p.name) + '</span>' + st + '</h3>' + (dutyBtn(p) ? '<div style="margin:-2px 0 6px">' + dutyBtn(p).trim() + '</div>' : '') + '<div class="muted" style="margin-bottom:6px">ค้าง ' + l.count + ' ออเดอร์ / ' + l.items + ' รายการ · เสร็จวันนี้ ' + l.done + '</div><div class="bar" style="margin-bottom:10px"><i style="width:' + Math.round(l.items / mx * 100) + '%"></i></div>' +
       (jobs.length ? jobs.map(o => '<div class="job' + (o.rider === 'arrived' ? ' urgent' : '') + '"><div class="id">' + esc(did(o)) + '</div><div class="n">' + o.items + ' รายการ · ' + (o.amount ? fmtB(o.amount) + ' · ' : '') + 'รอมา ' + mins(now - o.created_at) + ' นาที</div><div>' + riderChip(o.rider) + '</div>' + itemsBlock(o) +
-        (isAdmin || S.me.role === 'viewer' ? (jobState[o.id] === 'saving' ? '<button class="p" disabled style="width:100%;margin:6px 0;opacity:.75">⏳ กำลังบันทึก…</button>' : jobState[o.id] === 'ok' ? '<button class="p" disabled style="width:100%;margin:6px 0;background:var(--ok)">✅ ปิดงานสำเร็จ</button>' : '<button class="p" style="width:100%;margin:6px 0" onclick="doneJob(\'' + o.id + '\')">จัดเสร็จ ✓</button>') : '') +
+        (isAdmin || S.me.role === 'viewer' ? (jobState[o.id] === 'saving' ? '<button class="p" disabled style="width:100%;margin:6px 0;opacity:.75">⏳ กำลังบันทึก…</button>' : jobState[o.id] === 'ok' ? '<button class="p" disabled style="width:100%;margin:6px 0;background:var(--ok)">✅ ปิดงานสำเร็จ</button>' : '<button class="p ' + doneCls(o) + '" style="width:100%;margin:6px 0" onclick="doneJob(\'' + o.id + '\')">' + doneTxt(o) + '</button>') : '') +
         (isAdmin || S.me.role === 'viewer' ? '<select onchange="reassignJob(\'' + o.id + '\',this)">' + moveOpts(o) + '</select>' : '') + '</div>').join('') : '<div class="muted" style="text-align:center;padding:14px 0">ไม่มีงานค้าง</div>') + '</div>';
   }).join('') : '<div class="card muted">ยังไม่มีคนจัดในระบบ</div>') + '</div>';
   const hr = histRange(), hist = S.orders.filter(o => o.status !== 'todo' && o.done_at >= hr[0] && o.done_at < hr[1]).sort((a, b) => b.done_at - a.done_at);
@@ -2715,6 +2718,10 @@ function itemsBlock(o) {
       : st[i] ? '<span class="pk"><span class="chip ' + (st[i] === '1' ? 'ok' : 'red') + '">' + (st[i] === '1' ? 'ครบ' : 'ขาด') + '</span></span>' : '') + '</div>').join('') + '</div>';
 }
 const fmtB = n => n > 0 ? '฿' + Math.round(n).toLocaleString('th-TH') : '-';
+const WARN_MIN = 10;   // เหลืองตั้งแต่นาทีที่ 10, แดงเมื่อเกิน slaMin (15)
+const elapsedMin = o => Math.max(0, Math.round((Date.now() - (o.assigned_at || o.created_at)) / 60000));   // นับจากเวลาเดียวกับเวลาหยิบ (pickMin)
+const doneCls = o => { const m = elapsedMin(o); return m > slaMin ? 'dr' : m >= WARN_MIN ? 'dy' : 'dg'; };   // เขียว < 10 น. · เหลือง 10–15 น. · แดง > 15 น.
+const doneTxt = o => 'จัดเสร็จ ✓ · ' + elapsedMin(o) + ' น.';
 const pickMin = o => Math.max(0, Math.round((o.done_at - (o.assigned_at || o.created_at)) / 60000));
 const COLORS = ['#D71920', '#0B7285', '#E8A317', '#5F3DC4', '#2B8A3E', '#C2255C', '#495057', '#1971C2'];
 let range = 'today';
@@ -3056,7 +3063,7 @@ async function capturePage(el, title) {   // แคปทั้งหน้า (
 }
 const hblkOpen = {};   // จำสถานะพับ/ขยายของบล็อก ไม่ให้รีเซ็ตตอนหน้าอัปเดตอัตโนมัติ
 function histBlocks(list, hr, rowFn) {   // 2 บล็อกตามเวลาเปิด-ปิดร้าน: 15:01–21:30 (ล่าสุด ซ้าย) | 08:00–15:00 (ขวา) (ก่อน 08:00 รวมบล็อกแรก, หลัง 21:30 รวมบล็อกหลัง) – คอม/แท็บเล็ต = ซ้าย-ขวา, มือถือ = แถวเดียวและซ่อนออเดอร์ไว้ก่อน
-  const H = 3600000, cut = hr[0] + 15 * H + 60000, wide = !window.matchMedia('(max-width: 700px)').matches, dayKey = String(hr[0]);
+  const H = 3600000, cut = hr[0] + 15 * H + 60000, wide = !(window.matchMedia && window.matchMedia('(max-width: 700px)').matches), dayKey = String(hr[0]);
   const defs = [['🌆 15:01 – 21:30', list.filter(o => o.done_at >= cut), 'b', o => o.done_at >= hr[0] + 21.5 * H],   // ช่วงล่าสุดอยู่ซ้าย (มือถือ = อยู่บน)
                 ['🌤 08:00 – 15:00', list.filter(o => o.done_at < cut), 'a', o => o.done_at < hr[0] + 8 * H]];
   return '<div class="hblks">' + defs.map(([title, l, k, outside]) => {
