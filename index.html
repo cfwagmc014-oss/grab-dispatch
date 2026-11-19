@@ -2719,10 +2719,11 @@ function itemsBlock(o) {
 }
 const fmtB = n => n > 0 ? '฿' + Math.round(n).toLocaleString('th-TH') : '-';
 const WARN_MIN = 10;   // เหลืองตั้งแต่นาทีที่ 10, แดงเมื่อเกิน slaMin (15)
-const elapsedMin = o => Math.max(0, Math.round((Date.now() - (o.assigned_at || o.created_at)) / 60000));   // นับจากเวลาเดียวกับเวลาหยิบ (pickMin)
+const elapsedMin = o => Math.max(0, Math.round((Date.now() - o.created_at) / 60000));   // นับจากเวลาที่ออเดอร์เข้าระบบ (เวลาที่รอจริง) ย้ายงานให้คนอื่นก็ไม่รีเซ็ต
 const doneCls = o => { const m = elapsedMin(o); return m > slaMin ? 'dr' : m >= WARN_MIN ? 'dy' : 'dg'; };   // เขียว < 10 น. · เหลือง 10–15 น. · แดง > 15 น.
 const doneTxt = o => 'จัดเสร็จ ✓ · ' + elapsedMin(o) + ' น.';
-const pickMin = o => Math.max(0, Math.round((o.done_at - (o.assigned_at || o.created_at)) / 60000));
+// เวลาหยิบ = เวลาที่ออเดอร์รอรวม (นับจากเข้าระบบ ถึงกดจัดเสร็จ) ย้ายงานระหว่างคนไม่รีเซ็ต – ตรงกับสีปุ่ม
+const pickMin = o => Math.max(0, Math.round((o.done_at - o.created_at) / 60000));
 const COLORS = ['#D71920', '#0B7285', '#E8A317', '#5F3DC4', '#2B8A3E', '#C2255C', '#495057', '#1971C2'];
 let range = 'today';
 let slaMin = 15; try { slaMin = Number(localStorage.getItem('slaMin')) || 15; } catch (e) {}
